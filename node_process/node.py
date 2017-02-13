@@ -2,13 +2,19 @@ from node_process.observer import Observer, Observable
 from threading import Thread
 import multiprocessing
 from queue import Queue
+import logging
+
+logger = logging.getLogger('default')
+logger.addHandler(logging.StreamHandler())
+logger.info('hello')
 
 
 class Node(Observable):
 
     def __init__(self, input_observable):
-
+        super(Node, self).__init__()
         self.input = NodeInput(self, input_observable)
+        self._value = None
 
     def execute(self, event):
         result = self.do_work(event)
@@ -19,6 +25,9 @@ class Node(Observable):
 
     def kill(self):
         self.execute(PoisonPill())
+
+    def get_value(self):
+        return self._value
 
 
 class AsyncNode(Node):
@@ -48,33 +57,55 @@ class AsyncNode(Node):
     def start(self):
         for thread in self.worker_threads:
             thread.start()
+        self.result_thread.start()
+
+    def kill(self):
+        super(AsyncNode, self).kill()
+        self.result_queue.put(PoisonPill())
+        self.join()
+
+    def join(self):
+        for thread in self.worker_threads:
+            thread.join()
+        self.result_thread.join()
 
     def execute(self, payload):
         if isinstance(payload, PoisonPill):
             for _ in range(self.num_threads):
-                self.worker_threads.put(payload)
+                self.worker_queue.put(payload)
         else:
+            print('executing %s'%payload)
             self.worker_queue.put(payload)
 
     def worker(self):
         while True:
             payload = self.worker_queue.get()
+            print('Worker received payload %s'%payload)
             if isinstance(payload, PoisonPill):
-                self.notify_observers(payload)
+                #self.notify_observers(payload)
                 return
             else:
                 try:
                     result = self.do_work(payload)
+                    print('result is %s'%result)
                 except Exception as e:
                     # TODO: Nodes should log
                     print('Ignoring exception')
                 else:
+                    print('Putting result %s'%result)
                     self.result_queue.put(result)
 
     def distribute(self):
         while True:
             result = self.result_queue.get()
-            self.notify_observers(result)
+            if isinstance(result, PoisonPill):
+                self.notify_observers(result)
+                return
+            else:
+                print('Sending %s to %i listeners'%(result, len(self._observers)))
+                print(self._observers)
+                self._value = result
+                self.notify_observers(result)
 
 
 class SplittingAsyncNodeNode(AsyncNode):
