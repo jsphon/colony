@@ -82,7 +82,6 @@ class AsyncNode(Node):
             payload = self.worker_queue.get()
             print('Worker received payload %s'%payload)
             if isinstance(payload, PoisonPill):
-                #self.notify_observers(payload)
                 return
             else:
                 try:
@@ -108,14 +107,6 @@ class AsyncNode(Node):
                 self.notify_observers(result)
 
 
-class SplittingAsyncNodeNode(AsyncNode):
-    """ Splits the Input into multiple parts"""
-
-    def __init__(self, input_observable, chunk_size):
-        super(SplittingAsyncNodeNode, self).__init__(input_observable)
-        self.chunk_size = chunk_size
-
-
 class NodeInput(Observer):
 
     def __init__(self, node, input_observable):
@@ -126,11 +117,11 @@ class NodeInput(Observer):
         self.node.execute(event)
 
 
-class SplittingNodeInput(NodeInput):
+class BatchNodeInput(NodeInput):
 
     def __init__(self, node, input_observable, chunk_size):
-        super(SplittingNodeInput, self).__init__(node, input_observable)
-        self.chunk_size=chunk_size
+        super(BatchNodeInput, self).__init__(node, input_observable)
+        self.chunk_size = chunk_size
 
     def notify(self, payload):
         for chunk in self.chunks(payload, self.chunk_size):
@@ -141,6 +132,17 @@ class SplittingNodeInput(NodeInput):
         """
         for i in range(0, len(payload), self.chunk_size):
             yield payload[i:i + self.chunk_size]
+
+
+class BatchAsyncNode(AsyncNode):
+    """ Splits the Input into multiple parts"""
+
+    nodeClass = BatchNodeInput
+
+    def __init__(self, input_observable, chunk_size):
+        super(BatchAsyncNode, self).__init__(input_observable)
+        self.chunk_size = chunk_size
+
 
 
 class PoisonPill(object):
