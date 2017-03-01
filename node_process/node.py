@@ -9,19 +9,82 @@ logger.addHandler(logging.StreamHandler())
 logger.info('hello')
 
 
-class Node(Observable):
+class NodeOutput(Observable):
 
-    def __init__(self, input_observable):
+    def __init__(self):
+        super(NodeOutput, self).__init__()
+
+    def connect_to(self, node):
+        self.node = node
+
+
+class IterableElementNodeOutput(NodeOutput):
+    """Send each element of iterable to output"""
+    def notify_observers(self, event):
+        if isinstance(event, PoisonPill):
+            super(IterableElementNodeOutput, self).notify_observers(event)
+        else:
+            for x in event:
+                super(IterableElementNodeOutput, self).notify_observers(x)
+
+
+class NodeInput(Observer):
+
+    def __init__(self):
+        self.node = None
+
+    def connect_to(self, node):
+        self.node = node
+
+    def notify(self, event):
+        self.node.execute(event)
+
+
+class BatchNodeInput(NodeInput):
+
+    def __init__(self, batch_size):
+        self.batch_size = batch_size
+
+    def notify(self, payload):
+        for batch in self.chunks(payload):
+            self.node.execute(batch)
+
+    def chunks(self, payload):
+        """ Yield successive n-sized chunks from l.
+        """
+        for i in range(0, len(payload), self.batch_size):
+            yield payload[i:i + self.batch_size]
+
+
+class ListNodeInput(NodeInput):
+
+    def notify(self, payload):
+        for x in payload:
+            self.node.execute(x)
+
+
+class Node(object):
+
+    def __init__(self, node_input, node_output):
         super(Node, self).__init__()
-        self.input = NodeInput(self, input_observable)
+        self.input = node_input or NodeInput()
+        self.input.connect_to(self)
+        self.output = node_output or NodeOutput()
+        self.output.connect_to(self)
+
         self._value = None
+
+    def add_child(self, child_node):
+        self.output.register_observer(child_node.input)
 
     def execute(self, event):
         result = self.do_work(event)
         self.notify_observers(result)
 
     def do_work(self, payload):
-        raise NotImplementedError('do_work not implemented')
+        """ This is the function that does the work """
+        pass
+        # raise NotImplementedError('do_work not implemented')
 
     def kill(self):
         self.execute(PoisonPill())
@@ -32,8 +95,8 @@ class Node(Observable):
 
 class AsyncNode(Node):
 
-    def __init__(self, input_observable, num_threads=1, async_class=Thread):
-        super(AsyncNode, self).__init__(input_observable)
+    def __init__(self, node_input=None, node_output=None, num_threads=1, async_class=Thread):
+        super(AsyncNode, self).__init__(node_input, node_output)
 
         self.async_class = async_class
         self.queue_class = self.get_queue_class(async_class)
@@ -98,51 +161,14 @@ class AsyncNode(Node):
         while True:
             result = self.result_queue.get()
             if isinstance(result, PoisonPill):
-                self.notify_observers(result)
+                # self.notify_observers(result)
+                self.output.notify_observers(result)
                 return
             else:
-                print('Sending %s to %i listeners'%(result, len(self._observers)))
-                print(self._observers)
+                print('Sending %s to %i listeners'%(result, len(self.output._observers)))
+                print(self.output.observers)
                 self._value = result
-                self.notify_observers(result)
-
-
-class NodeInput(Observer):
-
-    def __init__(self, node, input_observable):
-        self.node = node
-        input_observable.register_observer(self)
-
-    def notify(self, event):
-        self.node.execute(event)
-
-
-class BatchNodeInput(NodeInput):
-
-    def __init__(self, node, input_observable, chunk_size):
-        super(BatchNodeInput, self).__init__(node, input_observable)
-        self.chunk_size = chunk_size
-
-    def notify(self, payload):
-        for chunk in self.chunks(payload, self.chunk_size):
-            self.node.execute(chunk)
-
-    def chunks(self, payload):
-        """ Yield successive n-sized chunks from l.
-        """
-        for i in range(0, len(payload), self.chunk_size):
-            yield payload[i:i + self.chunk_size]
-
-
-class BatchAsyncNode(AsyncNode):
-    """ Splits the Input into multiple parts"""
-
-    nodeClass = BatchNodeInput
-
-    def __init__(self, input_observable, chunk_size):
-        super(BatchAsyncNode, self).__init__(input_observable)
-        self.chunk_size = chunk_size
-
+                self.output.notify_observers(result)
 
 
 class PoisonPill(object):
@@ -152,6 +178,14 @@ class PoisonPill(object):
 if __name__=='__main__':
 
     observable = Observable()
-    node = AsyncNode(observable)
-    node.start()
-    observable.notify_observers()
+
+    node = AsyncNode(NodeInput(), NodeOutput())
+    node2 = AsyncNode(NodeInput(), NodeOutput())
+
+    node.add_child(node2)
+
+    node.input.notify('event1')
+    node.input.notify('event2')
+
+    node.kill()
+    #node_input.notify(PoisonPill())
