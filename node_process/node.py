@@ -101,13 +101,18 @@ class AsyncNode(Node):
         self.async_class = async_class
         self.queue_class = self.get_queue_class(async_class)
 
+        print('AsyncNode has queue class %s'%(self.queue_class))
+
         self.num_threads = num_threads
         self.worker_queue = self.queue_class()
 
         self.worker_threads = [async_class(target=self.worker) for _ in range(num_threads)]
 
         self.result_queue = self.queue_class()
-        self.result_thread = async_class(target=self.distribute)
+
+        # This has to be a thread, not a process, or the output node
+        # won't be able to notify observers that were created on the main thread
+        self.result_thread = Thread(target=self.distribute)
 
         self.start()
 
@@ -158,6 +163,7 @@ class AsyncNode(Node):
                     self.result_queue.put(result)
 
     def distribute(self):
+        print('result thread started, output has %i observers'%len(self.output.observers))
         while True:
             result = self.result_queue.get()
             if isinstance(result, PoisonPill):
@@ -166,7 +172,7 @@ class AsyncNode(Node):
                 return
             else:
                 print('Sending %s to %i listeners'%(result, len(self.output._observers)))
-                print(self.output.observers)
+                #print(self.output.observers)
                 self._value = result
                 self.output.notify_observers(result)
 

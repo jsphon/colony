@@ -2,6 +2,7 @@ import unittest
 from node_process import node
 from mock import MagicMock
 import time
+import multiprocessing
 
 EPS = 0.01
 
@@ -9,6 +10,7 @@ EPS = 0.01
 class AsyncNodeExample(node.AsyncNode):
 
     def do_work(self, payload):
+        print('AsyncNodeExample doing work')
         return 'result %s'%payload
 
 
@@ -41,6 +43,38 @@ class AsyncNodeTests(unittest.TestCase):
         # VERIFY
         time.sleep(EPS)
         self.assertEqual('result payload', self.node.get_value())
+
+
+class MultiProcessingAsyncNodeTests(unittest.TestCase):
+
+    def setUp(self):
+        self.observer = MagicMock()
+        self.node = AsyncNodeExample(async_class=multiprocessing.Process)
+        self.node.output.register_observer(self.observer)
+
+    def tearDown(self):
+        self.node.kill()
+
+    def test_execute(self):
+
+        # TEST
+        self.node.execute('payload')
+
+        # VERIFY
+        time.sleep(1)
+
+        self.assertEqual(1, self.observer.notify.call_count)
+        self.assertEqual('result payload', self.observer.notify.call_args[0][0])
+
+    def test_get_value(self):
+
+        # TEST
+        self.node.execute('payload')
+
+        # VERIFY
+        time.sleep(EPS)
+        self.assertEqual('result payload', self.node.get_value())
+
 
 
 class BatchNodeInputTests(unittest.TestCase):
