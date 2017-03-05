@@ -14,6 +14,13 @@ class AsyncNodeExample(node.AsyncNode):
         return 'result %s'%payload
 
 
+class AsyncNodeWithArgExample(node.AsyncNode):
+
+    def do_work(self, payload, arg1):
+        print('AsyncNodeWithArgExample(%s,%s)'%(payload, arg1))
+        return payload, arg1
+
+
 class AsyncNodeTests(unittest.TestCase):
 
     def setUp(self):
@@ -43,6 +50,81 @@ class AsyncNodeTests(unittest.TestCase):
         # VERIFY
         time.sleep(EPS)
         self.assertEqual('result payload', self.node.get_value())
+
+
+class AsyncNodeWithArgTests(unittest.TestCase):
+
+    def setUp(self):
+        self.node_arg = AsyncNodeExample()
+
+        self.observer = MagicMock()
+        self.node = AsyncNodeWithArgExample(args=[self.node_arg])
+        self.node.output.register_observer(self.observer)
+
+    def tearDown(self):
+        self.node_arg.kill()
+        self.node.kill()
+
+    def test_execute(self):
+
+        # TEST
+        self.node.execute('data')
+
+        # VERIFY
+        time.sleep(0.1)
+
+        self.assertEqual(1, self.observer.notify.call_count)
+        self.assertEqual(('data', None), self.observer.notify.call_args[0][0])
+
+        self.node_arg.execute('node arg test')
+        time.sleep(EPS)
+        self.node.execute('data2')
+        time.sleep(EPS)
+
+        self.assertEqual(2, self.observer.notify.call_count)
+        self.assertEqual(('data2', 'result node arg test'), self.observer.notify.call_args[0][0])
+
+
+class AsyncNodeWithKwargExample(node.AsyncNode):
+
+    def do_work(self, payload, kwarg1=None):
+        print('AsyncNodeWithKwargExample(%s,kwarg1=%s)'%(payload, kwarg1))
+        return payload, kwarg1
+
+
+class AsyncNodeWithKwargTests(unittest.TestCase):
+
+    def setUp(self):
+        self.node_kwarg = AsyncNodeExample()
+
+        self.observer = MagicMock()
+        self.node = AsyncNodeWithKwargExample(kwargs={'kwarg1': self.node_kwarg})
+        self.node.output.register_observer(self.observer)
+
+    def tearDown(self):
+        self.node_kwarg.kill()
+        self.node.kill()
+
+    def test_execute(self):
+
+        # TEST
+        self.node.execute('data')
+
+        # VERIFY
+        time.sleep(0.1)
+
+        print(self.observer.notify.call_args[0][0])
+        self.assertEqual(1, self.observer.notify.call_count)
+        self.assertEqual(('data', None), self.observer.notify.call_args[0][0])
+
+        self.node_kwarg.execute('node kwarg test')
+        time.sleep(EPS)
+        self.node.execute('data2')
+        time.sleep(EPS)
+
+        self.assertEqual(2, self.observer.notify.call_count)
+        self.assertEqual(('data2', 'result node kwarg test'), self.observer.notify.call_args[0][0])
+
 
 
 class MultiProcessingAsyncNodeTests(unittest.TestCase):

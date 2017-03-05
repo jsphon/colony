@@ -28,6 +28,20 @@ class IterableElementNodeOutput(NodeOutput):
                 super(IterableElementNodeOutput, self).notify_observers(x)
 
 
+class NodeArg(object):
+
+    def __init__(self, payload, idx):
+        self.payload = payload
+        self.idx = idx
+
+
+class NodeKwarg(object):
+
+    def __init__(self, payload, kwarg):
+        self.payload = payload
+        self.kwarg = kwarg
+
+
 class NodeInput(Observer):
 
     def __init__(self):
@@ -38,6 +52,26 @@ class NodeInput(Observer):
 
     def notify(self, event):
         self.node.execute(event)
+
+
+class NodeArgInput(NodeInput):
+
+    def __init__(self, idx):
+        super(NodeArgInput, self).__init__()
+        self.idx = idx
+
+    def notify(self, payload):
+        self.node.execute(NodeArg(payload, self.idx))
+
+
+class NodeKwargInput(NodeInput):
+
+    def __init__(self, kwarg):
+        super(NodeKwargInput, self).__init__()
+        self.kwarg = kwarg
+
+    def notify(self, payload):
+        self.node.execute(NodeKwarg(payload, self.kwarg))
 
 
 class BatchNodeInput(NodeInput):
@@ -65,12 +99,46 @@ class ListNodeInput(NodeInput):
 
 class Node(object):
 
-    def __init__(self, node_input, node_output):
+    def __init__(self, node_input, node_output, args, kwargs):
+        """ Processing unit of code
+
+        We have args and kwargs to allow this unit to retrieve changed
+        values from other nodes, that might be from other processes.
+        Do we really need them if we are using threading rather than
+        multi-processing?
+
+        Parameters
+        ----------
+        node_input : NodeInput
+        node_output : NodeOutput
+        args : NodeArg
+            represents a function argument that could change
+        kwargs : NodeKwarg
+            represents a keyword argument that could change
+
+        """
         super(Node, self).__init__()
         self.input = node_input or NodeInput()
         self.input.connect_to(self)
         self.output = node_output or NodeOutput()
         self.output.connect_to(self)
+
+        self.node_args = args
+        self.node_arg_values = []
+
+        for i, arg in enumerate(args or []):
+            node_arg_input = NodeArgInput(i)
+            node_arg_input.connect_to(self)
+            arg.output.register_observer(node_arg_input)
+            self.node_arg_values.append(arg.get_value())
+
+        self.node_kwargs = kwargs
+        self.node_kwarg_values = {}
+        for k, v in (kwargs or {}).items():
+            node_kwarg_input = NodeKwargInput(k)
+            node_kwarg_input.connect_to(self)
+            v.output.register_observer(node_kwarg_input)
+            self.node_kwarg_values[k] = v.get_value()
 
         self._value = None
 
@@ -95,13 +163,16 @@ class Node(object):
 
 class AsyncNode(Node):
 
-    def __init__(self, node_input=None, node_output=None, num_threads=1, async_class=Thread):
-        super(AsyncNode, self).__init__(node_input, node_output)
+    def __init__(self, node_input=None,
+                       node_output=None,
+                       num_threads=1,
+                       async_class=Thread,
+                       args=None,
+                       kwargs=None):
+        super(AsyncNode, self).__init__(node_input, node_output, args, kwargs)
 
         self.async_class = async_class
         self.queue_class = self.get_queue_class(async_class)
-
-        print('AsyncNode has queue class %s'%(self.queue_class))
 
         self.num_threads = num_threads
         self.worker_queue = self.queue_class()
@@ -151,21 +222,30 @@ class AsyncNode(Node):
             print('Worker received payload %s'%payload)
             if isinstance(payload, PoisonPill):
                 return
+            elif isinstance(payload, NodeArg):
+                print('Received a node arg: (%s, %s)' % (str(payload.payload), payload.idx))
+                self.node_arg_values[payload.idx] = payload.payload
+            elif isinstance(payload, NodeKwarg):
+                print('Received a node kwarg(%s=%s)' % (str(payload.kwarg), str(payload.payload)))
+                self.node_kwarg_values[payload.kwarg] = payload.payload
             else:
                 try:
-                    result = self.do_work(payload)
-                    print('result is %s'%result)
+                    result = self.do_work(payload,
+                                        *self.node_arg_values,
+                                        **self.node_kwarg_values)
+                    print('result is %s' % str(result))
                 except Exception as e:
                     # TODO: Nodes should log
-                    print('Ignoring exception')
+                    print('Ignoring exception:%s'%str(e))
                 else:
-                    print('Putting result %s'%result)
+                    print('Putting result %s'%str(result))
                     self.result_queue.put(result)
 
     def distribute(self):
-        print('result thread started, output has %i observers'%len(self.output.observers))
+        #print('result thread started, output has %i observers'%len(self.output.observers))
         while True:
             result = self.result_queue.get()
+            print('distribute(%s)'%str(result))
             if isinstance(result, PoisonPill):
                 # self.notify_observers(result)
                 self.output.notify_observers(result)
