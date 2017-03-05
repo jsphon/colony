@@ -203,32 +203,6 @@ class ListNodeInputTests(unittest.TestCase):
         self.assertEqual('result 3', self.observer.notify.call_args_list[2][0][0])
         self.assertEqual('result 4', self.observer.notify.call_args_list[3][0][0])
 
-#
-#
-# class BatchAsyncNodeTests(unittest.TestCase):
-#
-#     def setUp(self):
-#         observable = MagicMock()
-#         self.observer = MagicMock()
-#         input_node = node.BatchNodeInput(observable, 1)
-#         n = BatchAsyncNodeExample(input_node=input_node, num_threads=1)
-#         n.register_observer(self.observer)
-#         self.n = n
-#
-#     def tearDown(self):
-#         self.n.kill()
-#
-#     def test_execute(self):
-#
-#         # TEST
-#         self.n.execute(['payload1', 'payload2'])
-#
-#         # VERIFY
-#         time.sleep(EPS)
-#
-#         self.assertEqual(2, self.observer.notify.call_count)
-#         self.assertEqual('result payload', self.observer.notify.call_args[0][0])
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -34,17 +34,17 @@ class NodeEvent(object):
         self.payload = payload
 
 
-class NodeArg(NodeEvent):
+class NodeArgEvent(NodeEvent):
 
     def __init__(self, payload, idx):
-        super(NodeArg, self).__init__(payload)
+        super(NodeArgEvent, self).__init__(payload)
         self.idx = idx
 
 
-class NodeKwarg(NodeEvent):
+class NodeKwargEvent(NodeEvent):
 
     def __init__(self, payload, kwarg):
-        super(NodeKwarg, self).__init__(payload)
+        super(NodeKwargEvent, self).__init__(payload)
         self.kwarg = kwarg
 
 
@@ -67,7 +67,7 @@ class NodeArgInput(NodeInput):
         self.idx = idx
 
     def notify(self, payload):
-        self.node.execute(NodeArg(payload, self.idx))
+        self.node.execute(NodeArgEvent(payload, self.idx))
 
 
 class NodeKwargInput(NodeInput):
@@ -77,7 +77,7 @@ class NodeKwargInput(NodeInput):
         self.kwarg = kwarg
 
     def notify(self, payload):
-        self.node.execute(NodeKwarg(payload, self.kwarg))
+        self.node.execute(NodeKwargEvent(payload, self.kwarg))
 
 
 class BatchNodeInput(NodeInput):
@@ -117,9 +117,9 @@ class Node(object):
         ----------
         node_input : NodeInput
         node_output : NodeOutput
-        args : NodeArg
+        args : NodeArgEvent
             represents a function argument that could change
-        kwargs : NodeKwarg
+        kwargs : NodeKwargEvent
             represents a keyword argument that could change
 
         """
@@ -158,7 +158,6 @@ class Node(object):
     def do_work(self, payload, *args, **kwargs):
         """ This is the function that does the work """
         pass
-        # raise NotImplementedError('do_work not implemented')
 
     def kill(self):
         self.execute(PoisonPill())
@@ -219,20 +218,16 @@ class AsyncNode(Node):
             for _ in range(self.num_threads):
                 self.worker_queue.put(payload)
         else:
-            print('executing %s'%payload)
             self.worker_queue.put(payload)
 
     def worker(self):
         while True:
             event = self.worker_queue.get()
-            print('Worker received payload %s'%event)
             if isinstance(event, PoisonPill):
                 return
-            elif isinstance(event, NodeArg):
-                print('Received a node arg: (%s, %s)' % (str(event.payload), event.idx))
+            elif isinstance(event, NodeArgEvent):
                 self.node_arg_values[event.idx] = event.payload
-            elif isinstance(event, NodeKwarg):
-                print('Received a node kwarg(%s=%s)' % (str(event.kwarg), str(event.payload)))
+            elif isinstance(event, NodeKwargEvent):
                 self.node_kwarg_values[event.kwarg] = event.payload
             elif isinstance(event, NodeEvent):
                 result = self.do_work(event.payload, *self.node_arg_values, **self.node_kwarg_values)
@@ -242,17 +237,12 @@ class AsyncNode(Node):
                 raise ValueError('Event type not recognised: %s'%type(event))
 
     def distribute(self):
-        #print('result thread started, output has %i observers'%len(self.output.observers))
         while True:
             result = self.result_queue.get()
-            print('distribute(%s)'%str(result))
             if isinstance(result, PoisonPill):
-                # self.notify_observers(result)
                 self.output.notify_observers(result)
                 return
             else:
-                print('Sending result "%s" to %i listeners'%(result, len(self.output._observers)))
-                #print(self.output.observers)
                 self._value = result
                 self.output.notify_observers(result)
 
