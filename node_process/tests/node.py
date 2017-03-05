@@ -34,7 +34,7 @@ class AsyncNodeTests(unittest.TestCase):
     def test_execute(self):
 
         # TEST
-        self.node.execute('payload')
+        self.node.execute(node.NodeEvent('payload'))
 
         # VERIFY
         time.sleep(EPS)
@@ -45,7 +45,7 @@ class AsyncNodeTests(unittest.TestCase):
     def test_get_value(self):
 
         # TEST
-        self.node.execute('payload')
+        self.node.execute(node.NodeEvent('payload'))
 
         # VERIFY
         time.sleep(EPS)
@@ -68,7 +68,7 @@ class AsyncNodeWithArgTests(unittest.TestCase):
     def test_execute(self):
 
         # TEST
-        self.node.execute('data')
+        self.node.execute(node.NodeEvent('data'))
 
         # VERIFY
         time.sleep(0.1)
@@ -76,9 +76,9 @@ class AsyncNodeWithArgTests(unittest.TestCase):
         self.assertEqual(1, self.observer.notify.call_count)
         self.assertEqual(('data', None), self.observer.notify.call_args[0][0])
 
-        self.node_arg.execute('node arg test')
+        self.node_arg.execute(node.NodeEvent('node arg test'))
         time.sleep(EPS)
-        self.node.execute('data2')
+        self.node.execute(node.NodeEvent('data2'))
         time.sleep(EPS)
 
         self.assertEqual(2, self.observer.notify.call_count)
@@ -108,7 +108,7 @@ class AsyncNodeWithKwargTests(unittest.TestCase):
     def test_execute(self):
 
         # TEST
-        self.node.execute('data')
+        self.node.execute(node.NodeEvent('data'))
 
         # VERIFY
         time.sleep(0.1)
@@ -117,14 +117,13 @@ class AsyncNodeWithKwargTests(unittest.TestCase):
         self.assertEqual(1, self.observer.notify.call_count)
         self.assertEqual(('data', None), self.observer.notify.call_args[0][0])
 
-        self.node_kwarg.execute('node kwarg test')
+        self.node_kwarg.execute(node.NodeEvent('node kwarg test'))
         time.sleep(EPS)
-        self.node.execute('data2')
+        self.node.execute(node.NodeEvent('data2'))
         time.sleep(EPS)
 
         self.assertEqual(2, self.observer.notify.call_count)
         self.assertEqual(('data2', 'result node kwarg test'), self.observer.notify.call_args[0][0])
-
 
 
 class MultiProcessingAsyncNodeTests(unittest.TestCase):
@@ -140,7 +139,7 @@ class MultiProcessingAsyncNodeTests(unittest.TestCase):
     def test_execute(self):
 
         # TEST
-        self.node.execute('payload')
+        self.node.execute(node.NodeEvent('payload'))
 
         # VERIFY
         time.sleep(1)
@@ -151,12 +150,11 @@ class MultiProcessingAsyncNodeTests(unittest.TestCase):
     def test_get_value(self):
 
         # TEST
-        self.node.execute('payload')
+        self.node.execute(node.NodeEvent('payload'))
 
         # VERIFY
         time.sleep(EPS)
         self.assertEqual('result payload', self.node.get_value())
-
 
 
 class BatchNodeInputTests(unittest.TestCase):
