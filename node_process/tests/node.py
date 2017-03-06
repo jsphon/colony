@@ -3,6 +3,8 @@ from node_process import node
 from mock import MagicMock
 import time
 import multiprocessing
+from threading import Thread
+from multiprocessing import Process
 
 EPS = 0.01
 
@@ -159,50 +161,56 @@ class MultiProcessingAsyncNodeTests(unittest.TestCase):
 
 class BatchNodeInputTests(unittest.TestCase):
 
-    def setUp(self):
-        self.observer = MagicMock()
-        self.node = AsyncNodeExample(node.BatchNodeInput(2))
-        self.node.output.register_observer(self.observer)
-
-    def tearDown(self):
-        self.node.kill()
-
     def test_notify(self):
+        for async_class in (Thread, Process):
+            self.do_test_notify(async_class=async_class)
+
+    def do_test_notify(self, async_class):
+
+        observer = MagicMock()
+        n = AsyncNodeExample(node.BatchNodeInput(2), async_class=async_class)
+        n.output.register_observer(observer)
 
         # TEST
-        self.node.input.notify([1, 2, 3, 4])
+        n.input.notify([1, 2, 3, 4])
 
         # VERIFY
         time.sleep(EPS)
 
-        self.assertEqual(2, self.observer.notify.call_count)
-        self.assertEqual('result [1, 2]', self.observer.notify.call_args_list[0][0][0])
-        self.assertEqual('result [3, 4]', self.observer.notify.call_args_list[1][0][0])
+        self.assertEqual(2, observer.notify.call_count)
+        self.assertEqual('result [1, 2]', observer.notify.call_args_list[0][0][0])
+        self.assertEqual('result [3, 4]', observer.notify.call_args_list[1][0][0])
+
+        n.kill()
 
 
 class ListNodeInputTests(unittest.TestCase):
 
-    def setUp(self):
-        self.observer = MagicMock()
-        self.node = AsyncNodeExample(node.ListNodeInput())
-        self.node.output.register_observer(self.observer)
-
-    def tearDown(self):
-        self.node.kill()
-
     def test_notify(self):
+
+        for async_class in (Thread, Process):
+            self.do_test_notify(async_class)
+
+    def do_test_notify(self, async_class):
+
+        # SETUP
+        observer = MagicMock()
+        n = AsyncNodeExample(node.ListNodeInput(), async_class=async_class)
+        n.output.register_observer(observer)
+
         # TEST
-        self.node.input.notify([1, 2, 3, 4])
+        n.input.notify([1, 2, 3, 4])
 
         # VERIFY
         time.sleep(EPS)
 
-        self.assertEqual(4, self.observer.notify.call_count)
-        self.assertEqual('result 1', self.observer.notify.call_args_list[0][0][0])
-        self.assertEqual('result 2', self.observer.notify.call_args_list[1][0][0])
-        self.assertEqual('result 3', self.observer.notify.call_args_list[2][0][0])
-        self.assertEqual('result 4', self.observer.notify.call_args_list[3][0][0])
+        self.assertEqual(4, observer.notify.call_count)
+        self.assertEqual('result 1', observer.notify.call_args_list[0][0][0])
+        self.assertEqual('result 2', observer.notify.call_args_list[1][0][0])
+        self.assertEqual('result 3', observer.notify.call_args_list[2][0][0])
+        self.assertEqual('result 4', observer.notify.call_args_list[3][0][0])
 
+        n.kill()
 
 if __name__ == '__main__':
     unittest.main()
