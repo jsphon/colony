@@ -1,16 +1,11 @@
-from node_process.observer import Observer, Observable
-from threading import Thread
 import multiprocessing
 from queue import Queue
-import logging
+from threading import Thread
 
-logger = logging.getLogger('default')
-logger.addHandler(logging.StreamHandler())
-logger.info('hello')
+from node_process.observer import Observer, Observable
 
 
 class NodeOutput(Observable):
-
     def __init__(self):
         super(NodeOutput, self).__init__()
 
@@ -20,6 +15,7 @@ class NodeOutput(Observable):
 
 class IterableElementNodeOutput(NodeOutput):
     """Send each element of iterable to output"""
+
     def notify_observers(self, event):
         if isinstance(event, PoisonPill):
             super(IterableElementNodeOutput, self).notify_observers(event)
@@ -29,27 +25,23 @@ class IterableElementNodeOutput(NodeOutput):
 
 
 class NodeEvent(object):
-
     def __init__(self, payload):
         self.payload = payload
 
 
 class NodeArgEvent(NodeEvent):
-
     def __init__(self, payload, idx):
         super(NodeArgEvent, self).__init__(payload)
         self.idx = idx
 
 
 class NodeKwargEvent(NodeEvent):
-
     def __init__(self, payload, kwarg):
         super(NodeKwargEvent, self).__init__(payload)
         self.kwarg = kwarg
 
 
 class NodeInput(Observer):
-
     def __init__(self):
         self.node = None
 
@@ -61,7 +53,6 @@ class NodeInput(Observer):
 
 
 class NodeArgInput(NodeInput):
-
     def __init__(self, idx):
         super(NodeArgInput, self).__init__()
         self.idx = idx
@@ -71,7 +62,6 @@ class NodeArgInput(NodeInput):
 
 
 class NodeKwargInput(NodeInput):
-
     def __init__(self, kwarg):
         super(NodeKwargInput, self).__init__()
         self.kwarg = kwarg
@@ -81,7 +71,6 @@ class NodeKwargInput(NodeInput):
 
 
 class BatchNodeInput(NodeInput):
-
     def __init__(self, batch_size):
         self.batch_size = batch_size
 
@@ -97,14 +86,12 @@ class BatchNodeInput(NodeInput):
 
 
 class ListNodeInput(NodeInput):
-
     def notify(self, payload):
         for x in payload:
             self.node.execute(NodeEvent(x))
 
 
 class Node(object):
-
     def __init__(self, node_input, node_output, args, kwargs):
         """ Processing unit of code
 
@@ -153,7 +140,7 @@ class Node(object):
 
     def execute(self, event):
         result = self.do_work(event)
-        self.notify_observers(result)
+        self.output.notify_observers(result)
 
     def do_work(self, payload, *args, **kwargs):
         """ This is the function that does the work """
@@ -167,13 +154,12 @@ class Node(object):
 
 
 class AsyncNode(Node):
-
     def __init__(self, node_input=None,
-                       node_output=None,
-                       num_threads=1,
-                       async_class=Thread,
-                       args=None,
-                       kwargs=None):
+                 node_output=None,
+                 num_threads=1,
+                 async_class=Thread,
+                 args=None,
+                 kwargs=None):
         super(AsyncNode, self).__init__(node_input, node_output, args, kwargs)
 
         self.async_class = async_class
@@ -234,7 +220,7 @@ class AsyncNode(Node):
 
                 self.result_queue.put(result)
             else:
-                raise ValueError('Event type not recognised: %s'%type(event))
+                raise ValueError('Event type not recognised: %s' % type(event))
 
     def distribute(self):
         while True:
@@ -251,8 +237,7 @@ class PoisonPill(object):
     pass
 
 
-if __name__=='__main__':
-
+if __name__ == '__main__':
     observable = Observable()
 
     node = AsyncNode(NodeInput(), NodeOutput())
@@ -264,4 +249,4 @@ if __name__=='__main__':
     node.input.notify('event2')
 
     node.kill()
-    #node_input.notify(PoisonPill())
+    # node_input.notify(PoisonPill())
