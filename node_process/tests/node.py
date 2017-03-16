@@ -57,36 +57,37 @@ class AsyncNodeTests(unittest.TestCase):
 
 class AsyncNodeWithArgTests(unittest.TestCase):
 
-    def setUp(self):
-        self.node_arg = AsyncNodeExample()
+    def test_execute_multi(self):
 
-        self.observer = MagicMock()
-        self.node = AsyncNodeWithArgExample(args=[self.node_arg])
-        self.node.output.register_observer(self.observer)
+        for async_class in (Thread, Process):
+            self.do_test_execute(async_class)
 
-    def tearDown(self):
-        self.node_arg.kill()
-        self.node.kill()
+    def do_test_execute(self, async_class):
+        node_arg = AsyncNodeExample()
 
-    def test_execute(self):
+        observer = MagicMock()
+        n = AsyncNodeWithArgExample(async_class=async_class, args=[node_arg])
+        n.output.register_observer(observer)
 
         # TEST
-        self.node.execute(node.NodeEvent('data'))
+        n.execute(node.NodeEvent('data'))
 
         # VERIFY
         time.sleep(0.1)
 
-        self.assertEqual(1, self.observer.notify.call_count)
-        self.assertEqual(('data', None), self.observer.notify.call_args[0][0])
+        self.assertEqual(1, observer.notify.call_count)
+        self.assertEqual(('data', None), observer.notify.call_args[0][0])
 
-        self.node_arg.execute(node.NodeEvent('node arg test'))
+        node_arg.execute(NodeEvent('node arg test'))
         time.sleep(EPS)
-        self.node.execute(node.NodeEvent('data2'))
+        n.execute(NodeEvent('data2'))
         time.sleep(EPS)
 
-        self.assertEqual(2, self.observer.notify.call_count)
-        self.assertEqual(('data2', 'result node arg test'), self.observer.notify.call_args[0][0])
+        self.assertEqual(2, observer.notify.call_count)
+        self.assertEqual(('data2', 'result node arg test'), observer.notify.call_args[0][0])
 
+        n.kill()
+        node_arg.kill()
 
 class AsyncNodeWithKwargExample(node.AsyncNode):
 
