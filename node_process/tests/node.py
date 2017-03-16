@@ -1,5 +1,6 @@
 import unittest
 from node_process import node
+from node_process.node import AsyncNode, NodeEvent
 from mock import MagicMock
 import time
 import multiprocessing
@@ -96,16 +97,39 @@ class AsyncNodeWithKwargExample(node.AsyncNode):
 
 class AsyncNodeWithKwargTests(unittest.TestCase):
 
-    def setUp(self):
-        self.node_kwarg = AsyncNodeExample()
+    def test_execute_multi(self):
 
-        self.observer = MagicMock()
-        self.node = AsyncNodeWithKwargExample(kwargs={'kwarg1': self.node_kwarg})
-        self.node.output.register_observer(self.observer)
+        for async_class in (Thread, Process):
+            self.do_test_execute(async_class)
 
-    def tearDown(self):
-        self.node_kwarg.kill()
-        self.node.kill()
+    def do_test_execute(self, async_class):
+
+        node_kwarg = AsyncNodeExample(async_class=async_class)
+
+        observer = MagicMock()
+        n = AsyncNodeWithKwargExample(kwargs={'kwarg1': node_kwarg})
+        n.output.register_observer(observer)
+
+        # TEST
+        n.execute(node.NodeEvent('data'))
+
+        # VERIFY
+        time.sleep(0.1)
+
+        print(observer.notify.call_args[0][0])
+        self.assertEqual(1, observer.notify.call_count)
+        self.assertEqual(('data', None), observer.notify.call_args[0][0])
+
+        node_kwarg.execute(node.NodeEvent('node kwarg test'))
+        time.sleep(EPS)
+        n.execute(node.NodeEvent('data2'))
+        time.sleep(EPS)
+
+        self.assertEqual(2, observer.notify.call_count)
+        self.assertEqual(('data2', 'result node kwarg test'), observer.notify.call_args[0][0])
+
+        node_kwarg.kill()
+        n.kill()
 
     def test_execute(self):
 
