@@ -92,7 +92,7 @@ class ListNodeInput(NodeInput):
 
 
 class Node(object):
-    def __init__(self, node_input, node_output, args, kwargs):
+    def __init__(self, target, node_input, node_output, args, kwargs):
         """ Processing unit of code
 
         We have args and kwargs to allow this unit to retrieve changed
@@ -110,7 +110,7 @@ class Node(object):
             represents a keyword argument that could change
 
         """
-        super(Node, self).__init__()
+        self._target = target
         self.input = node_input or NodeInput()
         self.input.connect_to(self)
         self.output = node_output or NodeOutput()
@@ -139,12 +139,8 @@ class Node(object):
         self.output.register_observer(child_node.input)
 
     def execute(self, event):
-        result = self.do_work(event)
+        result = self._target(event)
         self.output.notify_observers(result)
-
-    def do_work(self, payload, *args, **kwargs):
-        """ This is the function that does the work """
-        pass
 
     def kill(self):
         self.execute(PoisonPill())
@@ -154,13 +150,15 @@ class Node(object):
 
 
 class AsyncNode(Node):
-    def __init__(self, node_input=None,
+    def __init__(self,
+                 target=None,
+                 node_input=None,
                  node_output=None,
                  num_threads=1,
                  async_class=Thread,
                  args=None,
                  kwargs=None):
-        super(AsyncNode, self).__init__(node_input, node_output, args, kwargs)
+        super(AsyncNode, self).__init__(target, node_input, node_output, args, kwargs)
 
         self.async_class = async_class
         self.queue_class = self.get_queue_class(async_class)
@@ -216,7 +214,7 @@ class AsyncNode(Node):
             elif isinstance(event, NodeKwargEvent):
                 self.node_kwarg_values[event.kwarg] = event.payload
             elif isinstance(event, NodeEvent):
-                result = self.do_work(event.payload, *self.node_arg_values, **self.node_kwarg_values)
+                result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
 
                 self.result_queue.put(result)
             else:
