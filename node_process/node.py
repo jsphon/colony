@@ -13,20 +13,18 @@ class NodeOutput(Observable):
         self.node = node
 
 
-class IterableElementNodeOutput(NodeOutput):
-    """Send each element of iterable to output"""
-
-    def notify_observers(self, event):
-        if isinstance(event, PoisonPill):
-            super(IterableElementNodeOutput, self).notify_observers(event)
-        else:
-            for x in event:
-                super(IterableElementNodeOutput, self).notify_observers(x)
-
-
 class NodeEvent(object):
     def __init__(self, payload):
         self.payload = payload
+
+    def __repr__(self):
+        return 'NodeEvent(payload=%s'%str(self.payload)
+
+
+class PoisonPill(NodeEvent):
+
+    def __init__(self):
+        self.payload=None
 
 
 class NodeArgEvent(NodeEvent):
@@ -48,8 +46,9 @@ class NodeInput(Observer):
     def connect_to(self, node):
         self.node = node
 
-    def notify(self, payload):
-        self.node.execute(NodeEvent(payload))
+    def notify(self, node_event):
+        print('NodeInput.notify(%s)'%node_event)
+        self.node.execute(node_event)
 
 
 class NodeArgInput(NodeInput):
@@ -92,7 +91,12 @@ class ListNodeInput(NodeInput):
 
 
 class Node(object):
-    def __init__(self, target, node_input, node_output, args, kwargs):
+    def __init__(self,
+            target=None,
+            node_input=None,
+            node_output=None,
+            args=None,
+            kwargs=None):
         """ Processing unit of code
 
         We have args and kwargs to allow this unit to retrieve changed
@@ -125,7 +129,7 @@ class Node(object):
             arg.output.register_observer(node_arg_input)
             self.node_arg_values.append(arg.get_value())
 
-        self.node_kwargs = kwargs
+        self.node_kwargs = kwargs or {}
         self.node_kwarg_values = {}
         for k, v in (kwargs or {}).items():
             node_kwarg_input = NodeKwargInput(k)
@@ -147,6 +151,23 @@ class Node(object):
 
     def get_value(self):
         return self._value
+
+
+class MapNode(Node):
+    """ Input should be iterable. Forwards the input's individual elements
+    to the output"""
+
+    def __init__(self):
+        super(MapNode, self).__init__()
+
+    def execute(self, event):
+        if isinstance(event, PoisonPill):
+            self.output.notify_observers(event)
+        elif isinstance(event, NodeEvent):
+            for x in event.payload:
+                self.output.notify_observers(NodeEvent(x))
+        else:
+            raise ValueError('MapNode cannot process event of type %s'%event)
 
 
 class AsyncNode(Node):
@@ -197,12 +218,12 @@ class AsyncNode(Node):
             thread.join()
         self.result_thread.join()
 
-    def execute(self, payload):
-        if isinstance(payload, PoisonPill):
+    def execute(self, event):
+        if isinstance(event, PoisonPill):
             for _ in range(self.num_threads):
-                self.worker_queue.put(payload)
+                self.worker_queue.put(event)
         else:
-            self.worker_queue.put(payload)
+            self.worker_queue.put(event)
 
     def worker(self):
         while True:
@@ -215,8 +236,8 @@ class AsyncNode(Node):
                 self.node_kwarg_values[event.kwarg] = event.payload
             elif isinstance(event, NodeEvent):
                 result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
-
-                self.result_queue.put(result)
+                print('worker got result %s' % str(result))
+                self.result_queue.put(NodeEvent(result))
             else:
                 raise ValueError('Event type not recognised: %s' % type(event))
 
@@ -227,24 +248,37 @@ class AsyncNode(Node):
                 self.output.notify_observers(result)
                 return
             else:
-                self._value = result
+                self._value = result.payload
+                print('Distributing %s to %i observers.' % (result, len(self.output.observers)))
                 self.output.notify_observers(result)
 
 
-class PoisonPill(object):
-    pass
-
-
 if __name__ == '__main__':
+
+    import time
+
+    def _target(payload):
+        print('target(%s)'%payload)
+        return ['target(%s)'%payload]
+
+    def _target2(payload):
+        print('target2(%s)'%payload)
+        return 'target2(%s)'%payload
+
     observable = Observable()
 
-    node = AsyncNode(NodeInput(), NodeOutput())
-    node2 = AsyncNode(NodeInput(), NodeOutput())
+    node1 = AsyncNode(_target)
+    node2 = MapNode()
+    node3 = AsyncNode(_target2)
 
-    node.add_child(node2)
+    node1.add_child(node2)
+    node2.add_child(node3)
 
-    node.input.notify('event1')
-    node.input.notify('event2')
+    node1.input.notify(NodeEvent('event1'))
+    time.sleep(0.1)
 
-    node.kill()
+    #node1.input.notify(NodeEvent('event2'))
+    #time.sleep(0.1)
+
+    #node1.kill()
     # node_input.notify(PoisonPill())
