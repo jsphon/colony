@@ -47,7 +47,7 @@ class NodeInput(Observer):
         self.node = node
 
     def notify(self, node_event):
-        print('NodeInput.notify(%s)'%node_event)
+        print('NodeInput.notify(%s)' % node_event)
         self.node.execute(node_event)
 
 
@@ -56,8 +56,8 @@ class NodeArgInput(NodeInput):
         super(NodeArgInput, self).__init__()
         self.idx = idx
 
-    def notify(self, payload):
-        self.node.execute(NodeArgEvent(payload, self.idx))
+    def notify(self, node_event):
+        self.node.execute(NodeArgEvent(node_event.payload, self.idx))
 
 
 class NodeKwargInput(NodeInput):
@@ -65,8 +65,8 @@ class NodeKwargInput(NodeInput):
         super(NodeKwargInput, self).__init__()
         self.kwarg = kwarg
 
-    def notify(self, payload):
-        self.node.execute(NodeKwargEvent(payload, self.kwarg))
+    def notify(self, node_event):
+        self.node.execute(NodeKwargEvent(node_event.payload, self.kwarg))
 
 
 class BatchNodeInput(NodeInput):

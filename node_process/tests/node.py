@@ -116,7 +116,7 @@ class AsyncNodeWithKwargTests(unittest.TestCase):
         time.sleep(0.1)
 
         self.assertEqual(1, observer.notify.call_count)
-        self.assertEqual(('data', None), observer.notify.call_args[0][0])
+        self.assertEqual(('data', None), observer.notify.call_args[0][0].payload)
 
         node_kwarg.execute(NodeEvent('node kwarg test'))
         time.sleep(EPS)
@@ -124,7 +124,7 @@ class AsyncNodeWithKwargTests(unittest.TestCase):
         time.sleep(EPS)
 
         self.assertEqual(2, observer.notify.call_count)
-        self.assertEqual(('data2', 'result node kwarg test'), observer.notify.call_args[0][0])
+        self.assertEqual(('data2', 'result node kwarg test'), observer.notify.call_args[0][0].payload)
 
         node_kwarg.kill()
         n.kill()
@@ -147,8 +147,8 @@ class BatchNodeInputTests(unittest.TestCase):
         time.sleep(EPS)
 
         self.assertEqual(2, observer.notify.call_count)
-        self.assertEqual('result [1, 2]', observer.notify.call_args_list[0][0][0])
-        self.assertEqual('result [3, 4]', observer.notify.call_args_list[1][0][0])
+        self.assertEqual('result [1, 2]', observer.notify.call_args_list[0][0][0].payload)
+        self.assertEqual('result [3, 4]', observer.notify.call_args_list[1][0][0].payload)
 
         n.kill()
 
