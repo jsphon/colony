@@ -14,6 +14,10 @@ def basic_target(payload):
     return 'result %s' % payload
 
 
+def thread_target(payload):
+    return 'thread_target(%s)'%payload
+
+
 def target_with_arg(payload, arg):
     return payload, arg
 
@@ -23,8 +27,10 @@ def target_with_kwarg(payload, kwarg1=None):
 
 
 class AsyncNodeTests(unittest.TestCase):
+
     def test_execute(self):
         for async_class in (Thread, Process):
+            print('=== Executing test with async_class=%s ==='%async_class)
             self.do_test_execute(async_class)
 
     def do_test_execute(self, async_class):
@@ -33,17 +39,24 @@ class AsyncNodeTests(unittest.TestCase):
         n = AsyncNode(target=basic_target, async_class=async_class)
         n.output.register_observer(observer)
 
+        child = AsyncNode(target=thread_target, async_class=Thread)
+        n.output.register_observer(child.input)
+
+        time.sleep(EPS)
+
         # TEST
         n.execute(NodeEvent('payload'))
 
         # VERIFY
         time.sleep(EPS)
 
-        self.assertEqual(1, observer.notify.call_count)
-        self.assertEqual('result payload', observer.notify.call_args[0][0].payload)
+        self.assertEqual('thread_target(result payload)', child.get_value())
+
+        #self.assertEqual(1, observer.notify.call_count)
+        #self.assertEqual('result payload', observer.notify.call_args[0][0].payload)
 
         # Tear Down
-
+        print('Killing')
         n.kill()
 
     def test_get_value(self):

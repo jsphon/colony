@@ -5,6 +5,25 @@ from threading import Thread
 from node_process.observer import Observer, Observable
 
 
+class Colony(object):
+
+    def __init__(self):
+        self.nodes = []
+
+    def add(self, node_class, *args, **kwargs):
+        new_node = node_class(*args, **kwargs)
+        self.nodes.append(new_node)
+        return new_node
+
+    def start(self):
+        for node in self.nodes:
+            node.start()
+
+    def kill(self):
+        for node in self.nodes:
+            node.kill()
+
+
 class NodeOutput(Observable):
     def __init__(self):
         super(NodeOutput, self).__init__()
@@ -12,13 +31,17 @@ class NodeOutput(Observable):
     def connect_to(self, node):
         self.node = node
 
+    def notify(self, event):
+        print('NodeOutput.notify(%s), notifying %i observers' % (event, len(self.observers) ))
+        self.notify_observers(event)
+
 
 class NodeEvent(object):
     def __init__(self, payload):
         self.payload = payload
 
     def __repr__(self):
-        return 'NodeEvent(payload=%s'%str(self.payload)
+        return 'NodeEvent(payload=%s)' % str(self.payload)
 
 
 class PoisonPill(NodeEvent):
@@ -96,7 +119,8 @@ class Node(object):
             node_input=None,
             node_output=None,
             args=None,
-            kwargs=None):
+            kwargs=None,
+            name = None):
         """ Processing unit of code
 
         We have args and kwargs to allow this unit to retrieve changed
@@ -119,6 +143,7 @@ class Node(object):
         self.input.connect_to(self)
         self.output = node_output or NodeOutput()
         self.output.connect_to(self)
+        self.name = name
 
         self.node_args = args
         self.node_arg_values = []
@@ -147,10 +172,13 @@ class Node(object):
         self.output.notify_observers(result)
 
     def kill(self):
-        self.execute(PoisonPill())
+        pass
 
     def get_value(self):
         return self._value
+
+    def start(self):
+        pass
 
 
 class MapNode(Node):
@@ -161,9 +189,7 @@ class MapNode(Node):
         super(MapNode, self).__init__()
 
     def execute(self, event):
-        if isinstance(event, PoisonPill):
-            self.output.notify_observers(event)
-        elif isinstance(event, NodeEvent):
+        if isinstance(event, NodeEvent):
             for x in event.payload:
                 self.output.notify_observers(NodeEvent(x))
         else:
@@ -178,8 +204,9 @@ class AsyncNode(Node):
                  num_threads=1,
                  async_class=Thread,
                  args=None,
-                 kwargs=None):
-        super(AsyncNode, self).__init__(target, node_input, node_output, args, kwargs)
+                 kwargs=None,
+                 name=None):
+        super(AsyncNode, self).__init__(target, node_input, node_output, args, kwargs, name=name)
 
         self.async_class = async_class
         self.queue_class = self.get_queue_class(async_class)
@@ -194,8 +221,6 @@ class AsyncNode(Node):
         # This has to be a thread, not a process, or the output node
         # won't be able to notify observers that were created on the main thread
         self.result_thread = Thread(target=self.distribute)
-
-        self.start()
 
     def get_queue_class(self, async_class):
         if async_class == Thread:
@@ -219,6 +244,7 @@ class AsyncNode(Node):
         self.result_thread.join()
 
     def execute(self, event):
+        print('execute(%s)'%event)
         if isinstance(event, PoisonPill):
             for _ in range(self.num_threads):
                 self.worker_queue.put(event)
@@ -228,6 +254,7 @@ class AsyncNode(Node):
     def worker(self):
         while True:
             event = self.worker_queue.get()
+            print('worker received event %s'%event)
             if isinstance(event, PoisonPill):
                 return
             elif isinstance(event, NodeArgEvent):
@@ -236,7 +263,7 @@ class AsyncNode(Node):
                 self.node_kwarg_values[event.kwarg] = event.payload
             elif isinstance(event, NodeEvent):
                 result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
-                print('worker got result %s' % str(result))
+                print('worker got result "%s"' % str(result))
                 self.result_queue.put(NodeEvent(result))
             else:
                 raise ValueError('Event type not recognised: %s' % type(event))
@@ -245,11 +272,10 @@ class AsyncNode(Node):
         while True:
             result = self.result_queue.get()
             if isinstance(result, PoisonPill):
-                self.output.notify_observers(result)
                 return
             else:
                 self._value = result.payload
-                print('Distributing %s to %i observers.' % (result, len(self.output.observers)))
+                print('%s: Distributing %s to %i observers.' % (self.name, result, len(self.output.observers)))
                 self.output.notify_observers(result)
 
 
@@ -267,12 +293,16 @@ if __name__ == '__main__':
 
     observable = Observable()
 
-    node1 = AsyncNode(_target)
-    node2 = MapNode()
-    node3 = AsyncNode(_target2)
+    col = Colony()
+
+    node1 = col.add(AsyncNode, _target, name='node1')
+    node2 = col.add(MapNode)
+    node3 = col.add(AsyncNode, _target2, name='node3')
 
     node1.add_child(node2)
     node2.add_child(node3)
+
+    col.start()
 
     node1.input.notify(NodeEvent('event1'))
     time.sleep(0.1)
@@ -280,5 +310,4 @@ if __name__ == '__main__':
     #node1.input.notify(NodeEvent('event2'))
     #time.sleep(0.1)
 
-    #node1.kill()
-    # node_input.notify(PoisonPill())
+    col.kill()

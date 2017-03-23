@@ -19,6 +19,7 @@ class Observable(object):
 
     def notify_observers(self, event=None):
         for obs in self._observers:
+            print('Notifying observer %s'%obs)
             obs.notify(event)
 
 
