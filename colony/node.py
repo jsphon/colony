@@ -2,7 +2,7 @@ import multiprocessing
 from queue import Queue
 from threading import Thread
 
-from node_process.observer import Observer, Observable
+from colony.observer import Observer, Observable
 
 
 class Colony(object):
@@ -177,8 +177,6 @@ class Node(object):
         self.output_port.register_observer(child_node.input_port)
 
     def execute(self, event):
-        # result = self._target(event)
-        # self.output_port.notify_observers(result)
         self.handle_event(event)
 
     def kill(self):
@@ -261,12 +259,6 @@ class AsyncNode(Node):
 
         self.worker_threads = [async_class(target=self.worker) for _ in range(num_threads)]
 
-        self.result_queue = self.queue_class()
-
-        # This has to be a thread, not a process, or the output node
-        # won't be able to notify observers that were created on the main thread
-        # self.result_thread = Thread(target=self.distribute)
-
     def get_queue_class(self, async_class):
         if async_class == Thread:
             return Queue
@@ -276,7 +268,6 @@ class AsyncNode(Node):
     def start(self):
         for thread in self.worker_threads:
             thread.start()
-            # self.result_thread.start()
 
     def kill(self):
         super(AsyncNode, self).kill()
@@ -318,16 +309,6 @@ class AsyncNode(Node):
     def handle_result(self, result):
         self._value = result
         self.output_port.notify(NodeEvent(result))
-
-        # def distribute(self):
-        #     while True:
-        #         result = self.result_queue.get()
-        #         if isinstance(result, PoisonPill):
-        #             return
-        #         else:
-        #             self._value = result.payload
-        #             print('%s: Distributing %s to %i observers.' % (self.name, result, len(self.output_port.observers)))
-        #             self.output_port.notify_observers(result)
 
 
 if __name__ == '__main__':

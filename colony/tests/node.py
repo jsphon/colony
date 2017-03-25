@@ -5,7 +5,7 @@ from threading import Thread
 
 from mock import MagicMock
 
-from node_process.node import AsyncNode, NodeEvent, ListNodeInput, BatchNodeInput
+from colony.node import AsyncNode, NodeEvent, ListNodeInput, BatchNodeInput
 
 EPS = 0.01
 
