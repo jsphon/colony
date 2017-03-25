@@ -37,10 +37,10 @@ class AsyncNodeTests(unittest.TestCase):
 
         observer = MagicMock()
         n = AsyncNode(target=basic_target, async_class=async_class)
-        n.output.register_observer(observer)
+        n.output_port.register_observer(observer)
 
         child = AsyncNode(target=thread_target, async_class=Thread)
-        n.output.register_observer(child.input)
+        n.output_port.register_observer(child.input_port)
 
         time.sleep(EPS)
 
@@ -87,7 +87,7 @@ class AsyncNodeWithArgTests(unittest.TestCase):
 
         observer = MagicMock()
         n = AsyncNode(target=target_with_arg, async_class=async_class, args=[node_arg])
-        n.output.register_observer(observer)
+        n.output_port.register_observer(observer)
 
         # TEST
         n.execute(NodeEvent('data'))
@@ -120,7 +120,7 @@ class AsyncNodeWithKwargTests(unittest.TestCase):
 
         observer = MagicMock()
         n = AsyncNode(target=target_with_kwarg, kwargs={'kwarg1': node_kwarg})
-        n.output.register_observer(observer)
+        n.output_port.register_observer(observer)
 
         # TEST
         n.execute(NodeEvent('data'))
@@ -150,11 +150,11 @@ class BatchNodeInputTests(unittest.TestCase):
 
     def do_test_notify(self, async_class):
         observer = MagicMock()
-        n = AsyncNode(target=basic_target, node_input=BatchNodeInput(2), async_class=async_class)
-        n.output.register_observer(observer)
+        n = AsyncNode(target=basic_target, input_port=BatchNodeInput(2), async_class=async_class)
+        n.output_port.register_observer(observer)
 
         # TEST
-        n.input.notify([1, 2, 3, 4])
+        n.input_port.notify([1, 2, 3, 4])
 
         # VERIFY
         time.sleep(EPS)
@@ -174,11 +174,11 @@ class ListNodeInputTests(unittest.TestCase):
     def do_test_notify(self, async_class):
         # SETUP
         observer = MagicMock()
-        n = AsyncNode(target=basic_target, node_input=ListNodeInput(), async_class=async_class)
-        n.output.register_observer(observer)
+        n = AsyncNode(target=basic_target, input_port=ListNodeInput(), async_class=async_class)
+        n.output_port.register_observer(observer)
 
         # TEST
-        n.input.notify([1, 2, 3, 4])
+        n.input_port.notify([1, 2, 3, 4])
 
         # VERIFY
         time.sleep(EPS)

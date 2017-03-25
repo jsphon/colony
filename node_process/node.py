@@ -6,7 +6,6 @@ from node_process.observer import Observer, Observable
 
 
 class Colony(object):
-
     def __init__(self):
         self.nodes = []
 
@@ -21,18 +20,19 @@ class Colony(object):
 
     def kill(self):
         for node in self.nodes:
+            print('Killing %s' % node)
             node.kill()
 
 
-class NodeOutput(Observable):
+class OutputPort(Observable):
     def __init__(self):
-        super(NodeOutput, self).__init__()
+        super(OutputPort, self).__init__()
 
     def connect_to(self, node):
         self.node = node
 
     def notify(self, event):
-        print('NodeOutput.notify(%s), notifying %i observers' % (event, len(self.observers) ))
+        print('OutputPort.notify(%s), notifying %i observers' % (event, len(self.observers)))
         self.notify_observers(event)
 
 
@@ -41,13 +41,22 @@ class NodeEvent(object):
         self.payload = payload
 
     def __repr__(self):
-        return 'NodeEvent(payload=%s)' % str(self.payload)
+        #return 'NodeEvent(payload=%s)' % str(self.payload)
+
+        class_name = self.__class__.__name__
+        if self.payload:
+            s_payload = str(self.payload)
+            if len(s_payload)>10:
+                s_payload = s_payload[:7] + '...'
+            return '<%s payload="%s">' % (class_name, s_payload)
+        else:
+            return '<%s>' % class_name
 
 
 class PoisonPill(NodeEvent):
 
     def __init__(self):
-        self.payload=None
+        super(PoisonPill, self).__init__(payload=None)
 
 
 class NodeArgEvent(NodeEvent):
@@ -62,7 +71,7 @@ class NodeKwargEvent(NodeEvent):
         self.kwarg = kwarg
 
 
-class NodeInput(Observer):
+class InputPort(Observer):
     def __init__(self):
         self.node = None
 
@@ -74,53 +83,46 @@ class NodeInput(Observer):
         self.node.execute(node_event)
 
 
-class NodeArgInput(NodeInput):
+class ArgInputPort(InputPort):
     def __init__(self, idx):
-        super(NodeArgInput, self).__init__()
+        super(ArgInputPort, self).__init__()
         self.idx = idx
 
     def notify(self, node_event):
         self.node.execute(NodeArgEvent(node_event.payload, self.idx))
 
 
-class NodeKwargInput(NodeInput):
+class KwargInputPort(InputPort):
     def __init__(self, kwarg):
-        super(NodeKwargInput, self).__init__()
+        super(KwargInputPort, self).__init__()
         self.kwarg = kwarg
 
     def notify(self, node_event):
         self.node.execute(NodeKwargEvent(node_event.payload, self.kwarg))
 
 
-class BatchNodeInput(NodeInput):
-    def __init__(self, batch_size):
-        self.batch_size = batch_size
-
-    def notify(self, payload):
-        for batch in self.chunks(payload):
-            self.node.execute(NodeEvent(batch))
-
-    def chunks(self, payload):
-        """ Yield successive n-sized chunks from l.
-        """
-        for i in range(0, len(payload), self.batch_size):
-            yield payload[i:i + self.batch_size]
-
-
-class ListNodeInput(NodeInput):
-    def notify(self, payload):
-        for x in payload:
-            self.node.execute(NodeEvent(x))
+# class BatchNodeInput(InputPort):
+#     def __init__(self, batch_size):
+#         self.batch_size = batch_size
+#
+#     def notify(self, payload):
+#         for batch in self.chunks(payload):
+#             self.node.execute(NodeEvent(batch))
+#
+#     def chunks(self, payload):
+#         """ Yield successive n-sized chunks from l.
+#         """
+#         for i in range(0, len(payload), self.batch_size):
+#             yield payload[i:i + self.batch_size]
 
 
 class Node(object):
     def __init__(self,
-            target=None,
-            node_input=None,
-            node_output=None,
-            args=None,
-            kwargs=None,
-            name = None):
+                 target=None,
+                 input_node=None,
+                 args=None,
+                 kwargs=None,
+                 name=None):
         """ Processing unit of code
 
         We have args and kwargs to allow this unit to retrieve changed
@@ -130,8 +132,8 @@ class Node(object):
 
         Parameters
         ----------
-        node_input : NodeInput
-        node_output : NodeOutput
+        input_port : InputPort
+        output_port : OutputPort
         args : NodeArgEvent
             represents a function argument that could change
         kwargs : NodeKwargEvent
@@ -139,17 +141,17 @@ class Node(object):
 
         """
         self._target = target
-        self.input = node_input or NodeInput()
-        self.input.connect_to(self)
-        self.output = node_output or NodeOutput()
-        self.output.connect_to(self)
+        self.input_port = InputPort()
+        self.input_port.connect_to(self)
+        self.output_port = OutputPort()
+        self.output_port.connect_to(self)
         self.name = name
 
         self.node_args = args
         self.node_arg_values = []
 
         for i, arg in enumerate(args or []):
-            node_arg_input = NodeArgInput(i)
+            node_arg_input = ArgInputPort(i)
             node_arg_input.connect_to(self)
             arg.output.register_observer(node_arg_input)
             self.node_arg_values.append(arg.get_value())
@@ -157,19 +159,27 @@ class Node(object):
         self.node_kwargs = kwargs or {}
         self.node_kwarg_values = {}
         for k, v in (kwargs or {}).items():
-            node_kwarg_input = NodeKwargInput(k)
+            node_kwarg_input = KwargInputPort(k)
             node_kwarg_input.connect_to(self)
             v.output.register_observer(node_kwarg_input)
             self.node_kwarg_values[k] = v.get_value()
 
         self._value = None
 
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        if self.name:
+            return '<%s name="%s">' % (class_name, self.name)
+        else:
+            return '<%s>' % class_name
+
     def add_child(self, child_node):
-        self.output.register_observer(child_node.input)
+        self.output_port.register_observer(child_node.input_port)
 
     def execute(self, event):
-        result = self._target(event)
-        self.output.notify_observers(result)
+        # result = self._target(event)
+        # self.output_port.notify_observers(result)
+        self.handle_event(event)
 
     def kill(self):
         pass
@@ -179,6 +189,25 @@ class Node(object):
 
     def start(self):
         pass
+
+    def handle_event(self, event):
+        print('worker received event %s' % event)
+        if isinstance(event, PoisonPill):
+            return -1
+        elif isinstance(event, NodeArgEvent):
+            self.node_arg_values[event.idx] = event.payload
+        elif isinstance(event, NodeKwargEvent):
+            self.node_kwarg_values[event.kwarg] = event.payload
+        elif isinstance(event, NodeEvent):
+            result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
+            print('worker got result "%s"' % str(result))
+            self.handle_result(result)
+        else:
+            raise ValueError('Event type not recognised: %s' % type(event))
+
+    def handle_result(self, result):
+        self._value = result
+        self.output_port.notify(NodeEvent(result))
 
 
 class MapNode(Node):
@@ -191,22 +220,38 @@ class MapNode(Node):
     def execute(self, event):
         if isinstance(event, NodeEvent):
             for x in event.payload:
-                self.output.notify_observers(NodeEvent(x))
+                self.output_port.notify_observers(NodeEvent(x))
         else:
-            raise ValueError('MapNode cannot process event of type %s'%event)
+            raise ValueError('MapNode cannot process event of type %s' % event)
+
+
+class BatchNode(Node):
+    def __init__(self, batch_size):
+        super(BatchNode, self).__init__()
+        self.batch_size = batch_size
+
+    def execute(self, event):
+        for batch in self.chunks(event.payload):
+            self.node.execute(NodeEvent(batch))
+
+    def chunks(self, payload):
+        """ Yield successive n-sized chunks from l.
+        """
+        for i in range(0, len(payload), self.batch_size):
+            yield payload[i:i + self.batch_size]
 
 
 class AsyncNode(Node):
     def __init__(self,
                  target=None,
-                 node_input=None,
-                 node_output=None,
+                 input_port=None,
+                 output_port=None,
                  num_threads=1,
                  async_class=Thread,
                  args=None,
                  kwargs=None,
                  name=None):
-        super(AsyncNode, self).__init__(target, node_input, node_output, args, kwargs, name=name)
+        super(AsyncNode, self).__init__(target=target, args=args, kwargs=kwargs, name=name)
 
         self.async_class = async_class
         self.queue_class = self.get_queue_class(async_class)
@@ -220,7 +265,7 @@ class AsyncNode(Node):
 
         # This has to be a thread, not a process, or the output node
         # won't be able to notify observers that were created on the main thread
-        self.result_thread = Thread(target=self.distribute)
+        # self.result_thread = Thread(target=self.distribute)
 
     def get_queue_class(self, async_class):
         if async_class == Thread:
@@ -231,65 +276,73 @@ class AsyncNode(Node):
     def start(self):
         for thread in self.worker_threads:
             thread.start()
-        self.result_thread.start()
+            # self.result_thread.start()
 
     def kill(self):
         super(AsyncNode, self).kill()
-        self.result_queue.put(PoisonPill())
+        for _ in self.worker_threads:
+            self.worker_queue.put(PoisonPill())
+
         self.join()
 
     def join(self):
         for thread in self.worker_threads:
             thread.join()
-        self.result_thread.join()
 
     def execute(self, event):
-        print('execute(%s)'%event)
-        if isinstance(event, PoisonPill):
-            for _ in range(self.num_threads):
-                self.worker_queue.put(event)
-        else:
-            self.worker_queue.put(event)
+        print('execute(%s)' % event)
+        self.worker_queue.put(event)
 
     def worker(self):
         while True:
             event = self.worker_queue.get()
-            print('worker received event %s'%event)
-            if isinstance(event, PoisonPill):
+            return_code = self.handle_event(event)
+            if return_code == -1:
                 return
-            elif isinstance(event, NodeArgEvent):
-                self.node_arg_values[event.idx] = event.payload
-            elif isinstance(event, NodeKwargEvent):
-                self.node_kwarg_values[event.kwarg] = event.payload
-            elif isinstance(event, NodeEvent):
-                result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
-                print('worker got result "%s"' % str(result))
-                self.result_queue.put(NodeEvent(result))
-            else:
-                raise ValueError('Event type not recognised: %s' % type(event))
 
-    def distribute(self):
-        while True:
-            result = self.result_queue.get()
-            if isinstance(result, PoisonPill):
-                return
-            else:
-                self._value = result.payload
-                print('%s: Distributing %s to %i observers.' % (self.name, result, len(self.output.observers)))
-                self.output.notify_observers(result)
+    def handle_event(self, event):
+        print('worker received event %s' % event)
+        if isinstance(event, PoisonPill):
+            return -1
+        elif isinstance(event, NodeArgEvent):
+            self.node_arg_values[event.idx] = event.payload
+        elif isinstance(event, NodeKwargEvent):
+            self.node_kwarg_values[event.kwarg] = event.payload
+        elif isinstance(event, NodeEvent):
+            result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
+            print('worker got result "%s"' % str(result))
+            self.handle_result(result)
+        else:
+            raise ValueError('Event type not recognised: %s' % type(event))
+
+    def handle_result(self, result):
+        self._value = result
+        self.output_port.notify(NodeEvent(result))
+
+        # def distribute(self):
+        #     while True:
+        #         result = self.result_queue.get()
+        #         if isinstance(result, PoisonPill):
+        #             return
+        #         else:
+        #             self._value = result.payload
+        #             print('%s: Distributing %s to %i observers.' % (self.name, result, len(self.output_port.observers)))
+        #             self.output_port.notify_observers(result)
 
 
 if __name__ == '__main__':
-
     import time
 
+
     def _target(payload):
-        print('target(%s)'%payload)
-        return ['target(%s)'%payload]
+        print('target(%s)' % payload)
+        return ['target(%s)' % payload]
+
 
     def _target2(payload):
-        print('target2(%s)'%payload)
-        return 'target2(%s)'%payload
+        print('target2(%s)' % payload)
+        return 'target2(%s)' % payload
+
 
     observable = Observable()
 
@@ -304,10 +357,17 @@ if __name__ == '__main__':
 
     col.start()
 
-    node1.input.notify(NodeEvent('event1'))
+    node1.input_port.notify(NodeEvent('event1'))
     time.sleep(0.1)
 
-    #node1.input.notify(NodeEvent('event2'))
-    #time.sleep(0.1)
+    node1.input_port.notify(NodeEvent('event2'))
+    time.sleep(0.1)
 
+    node1.input_port.notify(NodeEvent('event2'))
+    time.sleep(0.1)
+
+    print('Killing colony')
     col.kill()
+    print('done')
+
+    print(node3.get_value())
