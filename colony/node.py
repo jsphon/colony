@@ -41,12 +41,10 @@ class NodeEvent(object):
         self.payload = payload
 
     def __repr__(self):
-        #return 'NodeEvent(payload=%s)' % str(self.payload)
-
         class_name = self.__class__.__name__
         if self.payload:
             s_payload = str(self.payload)
-            if len(s_payload)>10:
+            if len(s_payload) > 10:
                 s_payload = s_payload[:7] + '...'
             return '<%s payload="%s">' % (class_name, s_payload)
         else:
@@ -78,9 +76,9 @@ class InputPort(Observer):
     def connect_to(self, node):
         self.node = node
 
-    def notify(self, node_event):
-        print('NodeInput.notify(%s)' % node_event)
-        self.node.execute(node_event)
+    def notify(self, data):
+        print('InputPort.notify(%s)' % data)
+        self.node.execute(data, self)
 
 
 class ArgInputPort(InputPort):
@@ -88,8 +86,8 @@ class ArgInputPort(InputPort):
         super(ArgInputPort, self).__init__()
         self.idx = idx
 
-    def notify(self, node_event):
-        self.node.execute(NodeArgEvent(node_event.payload, self.idx))
+    def notify(self, data):
+        self.node.execute(data, self)
 
 
 class KwargInputPort(InputPort):
@@ -119,7 +117,9 @@ class KwargInputPort(InputPort):
 class Node(object):
     def __init__(self,
                  target=None,
-                 input_node=None,
+                 reactive_input_ports=None,
+                 num_reactive_input_ports=None,
+                 default_reactive_input_values = None,
                  args=None,
                  kwargs=None,
                  name=None):
@@ -141,8 +141,28 @@ class Node(object):
 
         """
         self._target = target
-        self.input_port = InputPort()
-        self.input_port.connect_to(self)
+
+        if reactive_input_ports:
+            self.reactive_input_ports = reactive_input_ports
+            for rip in reactive_input_ports:
+                rip.connect_to(self)
+        elif num_reactive_input_ports:
+            self.reactive_input_ports = []
+            for i in range(num_reactive_input_ports):
+                rip = ArgInputPort(i)
+                rip.connect_to(self)
+                self.reactive_input_ports.append(rip)
+        else:
+            raise ValueError('Need to provide some reactive input ports')
+
+        if default_reactive_input_values:
+            self.reactive_input_values = default_reactive_input_values
+        else:
+            self.reactive_input_values = [None] * len(self.reactive_input_ports)
+
+        # self.input_port = InputPort()
+        # self.input_port.connect_to(self)
+
         self.output_port = OutputPort()
         self.output_port.connect_to(self)
         self.name = name
@@ -176,8 +196,8 @@ class Node(object):
     def add_child(self, child_node):
         self.output_port.register_observer(child_node.input_port)
 
-    def execute(self, event):
-        self.handle_event(event)
+    def execute(self, data, port):
+        self.handle_input(data, port)
 
     def kill(self):
         pass
@@ -187,6 +207,14 @@ class Node(object):
 
     def start(self):
         pass
+
+    def handle_input(self, data, port):
+        if isinstance(port, ArgInputPort):
+            self.reactive_input_values[port.idx] = data
+            result = self._target(*self.reactive_input_values)
+            self._value = result
+        else:
+            print('Port not recognised %s'%str(port))
 
     def handle_event(self, event):
         print('worker received event %s' % event)
@@ -244,7 +272,7 @@ class AsyncNode(Node):
                  target=None,
                  input_port=None,
                  output_port=None,
-                 num_threads=1,
+                 num_threads=10,
                  async_class=Thread,
                  args=None,
                  kwargs=None,
@@ -257,7 +285,7 @@ class AsyncNode(Node):
         self.num_threads = num_threads
         self.worker_queue = self.queue_class()
 
-        self.worker_threads = [async_class(target=self.worker) for _ in range(num_threads)]
+        self.worker_threads = []#[async_class(target=self.worker) for _ in range(num_threads)]
 
     def get_queue_class(self, async_class):
         if async_class == Thread:
@@ -266,6 +294,7 @@ class AsyncNode(Node):
             return multiprocessing.Queue
 
     def start(self):
+        self.worker_threads = [self.async_class(target=self.worker) for _ in range(self.num_threads)]
         for thread in self.worker_threads:
             thread.start()
 
@@ -315,40 +344,30 @@ if __name__ == '__main__':
     import time
 
 
-    def _target(payload):
-        print('target(%s)' % payload)
-        return ['target(%s)' % payload]
-
-
-    def _target2(payload):
-        print('target2(%s)' % payload)
-        return 'target2(%s)' % payload
-
-
+    def _target(a, b):
+        return a+b
     observable = Observable()
 
     col = Colony()
 
-    node1 = col.add(AsyncNode, _target, name='node1')
-    node2 = col.add(MapNode)
-    node3 = col.add(AsyncNode, _target2, name='node3')
-
-    node1.add_child(node2)
-    node2.add_child(node3)
+    node1 = col.add(Node, _target, name='node1',
+                    num_reactive_input_ports=2,
+                    default_reactive_input_values=[0, 0])
+    node1.output_port.register_observer(observable)
 
     col.start()
 
-    node1.input_port.notify(NodeEvent('event1'))
-    time.sleep(0.1)
+    node1.reactive_input_ports[0].notify(1)
+    node1.reactive_input_ports[1].notify(2)
 
-    node1.input_port.notify(NodeEvent('event2'))
-    time.sleep(0.1)
+    print(node1.get_value())
 
-    node1.input_port.notify(NodeEvent('event2'))
-    time.sleep(0.1)
+    node1.reactive_input_ports[0].notify(2)
+
+    print(node1.get_value())
 
     print('Killing colony')
     col.kill()
     print('done')
 
-    print(node3.get_value())
+
