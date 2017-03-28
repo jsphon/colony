@@ -3,6 +3,7 @@ from queue import Queue
 from threading import Thread
 
 from colony.observer import Observer, Observable
+from inspect import signature
 
 
 class Colony(object):
@@ -70,33 +71,30 @@ class NodeKwargEvent(NodeEvent):
 
 
 class InputPort(Observer):
-    def __init__(self):
-        self.node = None
+
+    def __init__(self, node=None):
+        self.node = node
 
     def connect_to(self, node):
         self.node = node
 
     def notify(self, data):
         print('InputPort.notify(%s)' % data)
-        self.node.execute(data, self)
+        self.node.handle_input(data, self)
 
 
 class ArgInputPort(InputPort):
-    def __init__(self, idx):
-        super(ArgInputPort, self).__init__()
-        self.idx = idx
 
-    def notify(self, data):
-        self.node.execute(data, self)
+    def __init__(self, idx, node=None):
+        super(ArgInputPort, self).__init__(node=node)
+        self.idx = idx
 
 
 class KwargInputPort(InputPort):
+
     def __init__(self, kwarg):
         super(KwargInputPort, self).__init__()
         self.kwarg = kwarg
-
-    def notify(self, node_event):
-        self.node.execute(NodeKwargEvent(node_event.payload, self.kwarg))
 
 
 # class BatchNodeInput(InputPort):
@@ -118,7 +116,6 @@ class Node(object):
     def __init__(self,
                  target=None,
                  reactive_input_ports=None,
-                 num_reactive_input_ports=None,
                  default_reactive_input_values = None,
                  args=None,
                  kwargs=None,
@@ -142,15 +139,18 @@ class Node(object):
         """
         self._target = target
 
+        function_analyser = FunctionAnalyser(target)
+        num_reactive_input_ports = function_analyser.num_args
+
         if reactive_input_ports:
+            assert len(reactive_input_ports) == num_reactive_input_ports
             self.reactive_input_ports = reactive_input_ports
             for rip in reactive_input_ports:
                 rip.connect_to(self)
         elif num_reactive_input_ports:
             self.reactive_input_ports = []
             for i in range(num_reactive_input_ports):
-                rip = ArgInputPort(i)
-                rip.connect_to(self)
+                rip = ArgInputPort(i, self)
                 self.reactive_input_ports.append(rip)
         else:
             raise ValueError('Need to provide some reactive input ports')
@@ -167,14 +167,14 @@ class Node(object):
         self.output_port.connect_to(self)
         self.name = name
 
-        self.node_args = args
-        self.node_arg_values = []
-
-        for i, arg in enumerate(args or []):
-            node_arg_input = ArgInputPort(i)
-            node_arg_input.connect_to(self)
-            arg.output.register_observer(node_arg_input)
-            self.node_arg_values.append(arg.get_value())
+        # self.node_args = args
+        # self.node_arg_values = []
+        #
+        # for i, arg in enumerate(args or []):
+        #     node_arg_input = ArgInputPort(i)
+        #     node_arg_input.connect_to(self)
+        #     arg.output.register_observer(node_arg_input)
+        #     self.node_arg_values.append(arg.get_value())
 
         self.node_kwargs = kwargs or {}
         self.node_kwarg_values = {}
@@ -209,10 +209,12 @@ class Node(object):
         pass
 
     def handle_input(self, data, port):
+        print('handle_input(%s, %s)'%(data, port))
         if isinstance(port, ArgInputPort):
             self.reactive_input_values[port.idx] = data
             result = self._target(*self.reactive_input_values)
             self._value = result
+            self.handle_result(result)
         else:
             print('Port not recognised %s'%str(port))
 
@@ -340,20 +342,40 @@ class AsyncNode(Node):
         self.output_port.notify(NodeEvent(result))
 
 
+class FunctionAnalyser(object):
+
+    def __init__(self, func):
+        self.func = func
+
+    @property
+    def num_args(self):
+        sig = self.signature
+        return len([x for x in sig.parameters.values() if x.default == sig.empty])
+
+    @property
+    def num_kwargs(self):
+        sig = self.signature
+        return len([x for x in sig.parameters.values() if x.default == sig.empty])
+
+    @property
+    def signature(self):
+        return signature(self.func)
+
+
 if __name__ == '__main__':
     import time
-
+    from colony.observer import ProcessSafeRememberingObserver
 
     def _target(a, b):
         return a+b
-    observable = Observable()
+
+    obs = ProcessSafeRememberingObserver()
 
     col = Colony()
 
     node1 = col.add(Node, _target, name='node1',
-                    num_reactive_input_ports=2,
                     default_reactive_input_values=[0, 0])
-    node1.output_port.register_observer(observable)
+    node1.output_port.register_observer(obs)
 
     col.start()
 
@@ -366,8 +388,6 @@ if __name__ == '__main__':
 
     print(node1.get_value())
 
-    print('Killing colony')
-    col.kill()
-    print('done')
-
-
+    obs.kill()
+    print('observer calls:')
+    print(obs.calls)

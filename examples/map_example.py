@@ -20,6 +20,6 @@ if __name__ == '__main__':
     map_node = col.add(MapNode)
     map_node.output_port.register_observer(obs)
 
-    map_node.input_port.notify(NodeEvent([1, 2, 3]))
+    map_node.reactive_input_ports[0].notify([1, 2, 3])
 
     print(obs.calls)
