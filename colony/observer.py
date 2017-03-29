@@ -38,8 +38,8 @@ class RememberingObserver(Observer):
         super(RememberingObserver, self).__init__()
         self.calls = []
 
-    def notify(self, event):
-        self.calls.append(event.payload)
+    def notify(self, data):
+        self.calls.append(data)
 
 
 class ProcessSafeRememberingObserver(Observer):

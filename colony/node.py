@@ -32,9 +32,9 @@ class OutputPort(Observable):
     def connect_to(self, node):
         self.node = node
 
-    def notify(self, event):
-        print('OutputPort.notify(%s), notifying %i observers' % (event, len(self.observers)))
-        self.notify_observers(event)
+    def notify(self, data):
+        print('OutputPort.notify(%s), notifying %i observers' % (data, len(self.observers)))
+        self.notify_observers(data)
 
 
 class NodeEvent(object):
@@ -85,9 +85,15 @@ class InputPort(Observer):
 
 class ArgInputPort(InputPort):
 
-    def __init__(self, idx, node=None):
+    def __init__(self, idx=None, node=None):
         super(ArgInputPort, self).__init__(node=node)
         self.idx = idx
+
+
+class MappingArgInputPort(ArgInputPort):
+    def notify(self, data):
+        for x in data:
+            self.node.handle_input(x, self)
 
 
 class KwargInputPort(InputPort):
@@ -142,11 +148,16 @@ class Node(object):
         function_analyser = FunctionAnalyser(target)
         num_reactive_input_ports = function_analyser.num_args
 
-        if reactive_input_ports:
+        if isinstance(reactive_input_ports, list):
             assert len(reactive_input_ports) == num_reactive_input_ports
             self.reactive_input_ports = reactive_input_ports
             for rip in reactive_input_ports:
                 rip.connect_to(self)
+        elif isinstance(reactive_input_ports, ArgInputPort):
+            # Single Reactive Input Port
+            self.reactive_input_ports = [reactive_input_ports]
+            self.reactive_input_ports[0].idx = 0
+            self.reactive_input_ports[0].connect_to(self)
         elif num_reactive_input_ports:
             self.reactive_input_ports = []
             for i in range(num_reactive_input_ports):
@@ -235,7 +246,7 @@ class Node(object):
 
     def handle_result(self, result):
         self._value = result
-        self.output_port.notify(NodeEvent(result))
+        self.output_port.notify(result)
 
 
 class MapNode(Node):
@@ -245,12 +256,14 @@ class MapNode(Node):
     def __init__(self):
         super(MapNode, self).__init__()
 
-    def execute(self, event):
-        if isinstance(event, NodeEvent):
-            for x in event.payload:
-                self.output_port.notify_observers(NodeEvent(x))
-        else:
-            raise ValueError('MapNode cannot process event of type %s' % event)
+    # def execute(self, payload):
+    #     if isinstance(event, NodeEvent):
+    #         for x in event.payload:
+    #             self.output_port.notify_observers(NodeEvent(x))
+    #     else:
+    #         raise ValueError('MapNode cannot process event of type %s' % event)
+
+
 
 
 class BatchNode(Node):

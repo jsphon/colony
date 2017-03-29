@@ -1,14 +1,5 @@
-from colony.node import Colony, Node, NodeEvent
-from colony.observer import Observer
-
-
-class RememberingObserver(Observer):
-    def __init__(self):
-        super(RememberingObserver, self).__init__()
-        self.calls = []
-
-    def notify(self, event):
-        self.calls.append(event.payload)
+from colony.node import Colony, Node
+from colony.observer import RememberingObserver
 
 
 def _x_squared(x):
@@ -16,6 +7,7 @@ def _x_squared(x):
 
 
 if __name__ == '__main__':
+
     obs = RememberingObserver()
     col = Colony()
 
