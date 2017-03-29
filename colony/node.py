@@ -283,10 +283,10 @@ class AsyncNode(Node):
                  output_port=None,
                  num_threads=10,
                  async_class=Thread,
-                 args=None,
-                 kwargs=None,
+                 node_args=None,
+                 node_kwargs=None,
                  name=None):
-        super(AsyncNode, self).__init__(target=target, args=args, kwargs=kwargs, name=name)
+        super(AsyncNode, self).__init__(target=target, node_args=node_args, node_kwargs=node_kwargs, name=name)
 
         self.async_class = async_class
         self.queue_class = self.get_queue_class(async_class)
