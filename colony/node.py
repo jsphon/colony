@@ -123,8 +123,8 @@ class Node(object):
                  target=None,
                  reactive_input_ports=None,
                  default_reactive_input_values = None,
-                 args=None,
-                 kwargs=None,
+                 node_args=None,
+                 node_kwargs=None,
                  name=None):
         """ Processing unit of code
 
@@ -137,9 +137,9 @@ class Node(object):
         ----------
         input_port : InputPort
         output_port : OutputPort
-        args : NodeArgEvent
+        node_args : list of nodes
             represents a function argument that could change
-        kwargs : NodeKwargEvent
+        node_kwargs : dict of nodes
             represents a keyword argument that could change
 
         """
@@ -171,14 +171,15 @@ class Node(object):
         else:
             self.reactive_input_values = [None] * len(self.reactive_input_ports)
 
-        # self.input_port = InputPort()
-        # self.input_port.connect_to(self)
+        if node_args:
+            if isinstance(node_args, Node):
+                node_args = [node_args]
+            for i, node_arg in enumerate(node_args):
+                node_arg.output_port.register_observer(self.reactive_input_ports[i])
 
         self.output_port = OutputPort()
         self.output_port.connect_to(self)
         self.name = name
-
-        #num_reactive_input_ports = function_analyser.num_args
 
         self.passive_input_ports = {}
         self.passive_input_values = {}
@@ -189,13 +190,9 @@ class Node(object):
             self.passive_input_ports[kwarg.name] = kwip
             self.passive_input_values[kwarg.name] = kwarg.default
 
-        # self.node_kwargs = kwargs or {}
-        # self.node_kwarg_values = {}
-        # for k, v in (kwargs or {}).items():
-        #     node_kwarg_input = KwargInputPort(k)
-        #     node_kwarg_input.connect_to(self)
-        #     v.output.register_observer(node_kwarg_input)
-        #     self.node_kwarg_values[k] = v.get_value()
+        if node_kwargs:
+            for kwarg, node_kwarg in node_kwargs.items():
+                node_kwarg.output_port.register_observer(self.passive_input_ports[kwarg])
 
         self._value = None
 
@@ -261,15 +258,6 @@ class MapNode(Node):
 
     def __init__(self):
         super(MapNode, self).__init__()
-
-    # def execute(self, payload):
-    #     if isinstance(event, NodeEvent):
-    #         for x in event.payload:
-    #             self.output_port.notify_observers(NodeEvent(x))
-    #     else:
-    #         raise ValueError('MapNode cannot process event of type %s' % event)
-
-
 
 
 class BatchNode(Node):
