@@ -178,22 +178,24 @@ class Node(object):
         self.output_port.connect_to(self)
         self.name = name
 
-        # self.node_args = args
-        # self.node_arg_values = []
-        #
-        # for i, arg in enumerate(args or []):
-        #     node_arg_input = ArgInputPort(i)
-        #     node_arg_input.connect_to(self)
-        #     arg.output.register_observer(node_arg_input)
-        #     self.node_arg_values.append(arg.get_value())
+        #num_reactive_input_ports = function_analyser.num_args
 
-        self.node_kwargs = kwargs or {}
-        self.node_kwarg_values = {}
-        for k, v in (kwargs or {}).items():
-            node_kwarg_input = KwargInputPort(k)
-            node_kwarg_input.connect_to(self)
-            v.output.register_observer(node_kwarg_input)
-            self.node_kwarg_values[k] = v.get_value()
+        self.passive_input_ports = {}
+        self.passive_input_values = {}
+        print('kwargs are %s'%str(function_analyser.kwargs))
+        for kwarg in function_analyser.kwargs:
+            kwip = KwargInputPort(kwarg.name)
+            kwip.connect_to(self)
+            self.passive_input_ports[kwarg.name] = kwip
+            self.passive_input_values[kwarg.name] = kwarg.default
+
+        # self.node_kwargs = kwargs or {}
+        # self.node_kwarg_values = {}
+        # for k, v in (kwargs or {}).items():
+        #     node_kwarg_input = KwargInputPort(k)
+        #     node_kwarg_input.connect_to(self)
+        #     v.output.register_observer(node_kwarg_input)
+        #     self.node_kwarg_values[k] = v.get_value()
 
         self._value = None
 
@@ -222,10 +224,14 @@ class Node(object):
     def handle_input(self, data, port):
         print('handle_input(%s, %s)'%(data, port))
         if isinstance(port, ArgInputPort):
+            # Reactive Input
             self.reactive_input_values[port.idx] = data
-            result = self._target(*self.reactive_input_values)
+            result = self._target(*self.reactive_input_values, **self.passive_input_values)
             self._value = result
             self.handle_result(result)
+        elif isinstance(port, KwargInputPort):
+            # Passive Input
+            self.passive_input_values[port.kwarg] = data
         else:
             print('Port not recognised %s'%str(port))
 
@@ -367,8 +373,12 @@ class FunctionAnalyser(object):
 
     @property
     def num_kwargs(self):
+        return len(self.kwargs)
+
+    @property
+    def kwargs(self):
         sig = self.signature
-        return len([x for x in sig.parameters.values() if x.default == sig.empty])
+        return [x for x in sig.parameters.values() if x.default != sig.empty]
 
     @property
     def signature(self):
