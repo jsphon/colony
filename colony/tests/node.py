@@ -1,11 +1,9 @@
-import time
+
 import unittest
 from multiprocessing import Process
 from threading import Thread
 
-from mock import MagicMock
-
-from colony.node import AsyncNode#, ListNodeInput, BatchNodeInput
+from colony.node import AsyncNode
 
 from colony.node import Graph, Node
 from colony.observer import RememberingObserver, ProcessSafeRememberingObserver
@@ -73,7 +71,7 @@ class AsyncNodeTests(unittest.TestCase):
 
         self.assertEqual([], obs.calls)
 
-    def test_calls_observer(self):
+    def test_calls_observer_process(self):
         obs = ProcessSafeRememberingObserver()
         col = Graph()
 

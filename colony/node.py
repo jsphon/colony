@@ -269,6 +269,7 @@ class AsyncNode(Node):
 
     def kill(self):
         super(AsyncNode, self).kill()
+        print('AsyncNode.kill()')
         for _ in self.worker_threads:
             self.worker_queue.put(PoisonPill())
 
@@ -283,9 +284,13 @@ class AsyncNode(Node):
 
     def worker(self):
         while True:
-            data, idx, kwarg = self.worker_queue.get()
-            print('AsyncNode worker got stuff')
-            super(AsyncNode, self).handle_input(data, idx, kwarg)
+            payload = self.worker_queue.get()
+            if isinstance(payload, PoisonPill):
+                return
+            else:
+                print('AsyncNode worker got stuff')
+                data, idx, kwarg = payload
+                super(AsyncNode, self).handle_input(data, idx, kwarg)
 
 
 class FunctionAnalyser(object):
