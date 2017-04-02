@@ -41,6 +41,10 @@ class RememberingObserver(Observer):
     def notify(self, data):
         self.calls.append(data)
 
+    @property
+    def call_set(self):
+        return set(self.calls)
+
 
 class ProcessSafeRememberingObserver(Observer):
     def __init__(self):
@@ -53,7 +57,7 @@ class ProcessSafeRememberingObserver(Observer):
     def notify(self, event):
         self.q.put(event)
 
-    def kill(self):
+    def stop(self):
         self.q.put(None)
         self.worker.join()
 
@@ -64,6 +68,10 @@ class ProcessSafeRememberingObserver(Observer):
                 self.calls.append(event)
             else:
                 return
+
+    @property
+    def call_set(self):
+        return set(self.calls)
 
 
 if __name__ == '__main__':

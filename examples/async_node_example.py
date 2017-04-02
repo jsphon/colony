@@ -23,7 +23,7 @@ if __name__ == '__main__':
     node.reactive_input_ports[0].notify(2)
     node.reactive_input_ports[0].notify(3)
 
-    col.kill()
-    obs.kill()
+    col.stop()
+    obs.stop()
 
     print(obs.calls)

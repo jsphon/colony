@@ -13,6 +13,10 @@ def _x_squared(x):
     return x * x
 
 
+def _x_plus_one(x):
+    return x + 1
+
+
 class NodeTests(unittest.TestCase):
     def test_calls_observer(self):
         obs = RememberingObserver()
@@ -26,7 +30,7 @@ class NodeTests(unittest.TestCase):
         node.reactive_input_ports[0].notify(2)
         node.reactive_input_ports[0].notify(3)
 
-        col.kill()
+        col.stop()
 
         print(obs.calls)
 
@@ -44,8 +48,8 @@ class AsyncNodeTests(unittest.TestCase):
         node.output_port.register_observer(obs)
 
         col.start()
-        col.kill()
-        obs.kill()
+        col.stop()
+        obs.stop()
 
         self.assertEqual([], obs.calls)
 
@@ -69,8 +73,8 @@ class AsyncNodeTests(unittest.TestCase):
         node.reactive_input_ports[0].notify(2)
         node.reactive_input_ports[0].notify(3)
 
-        col.kill()
-        obs.kill()
+        col.stop()
+        obs.stop()
 
         self.assertEqual([1, 4, 9], obs.calls)
 
@@ -94,13 +98,28 @@ class AsyncNodeTests(unittest.TestCase):
         map_node.reactive_input_ports[0].notify([1, 2, 3])
         map_node.reactive_input_ports[0].notify([3, 4, 5])
 
-        graph.kill()
-        obs.kill()
+        graph.stop()
+        obs.stop()
 
         expected = set([1, 4, 9, 9, 16, 25])
         actual = set(obs.calls)
         self.assertEqual(expected, actual)
 
+    def test_arg(self):
+
+        obs = RememberingObserver()
+        col = Graph()
+
+        node1 = col.add(Node, target=_x_squared)
+        node2 = col.add(Node, target=_x_plus_one, node_args=node1)
+
+        node2.output_port.register_observer(obs)
+
+        node1.reactive_input_ports[0].notify(1)
+        node1.reactive_input_ports[0].notify(2)
+        node1.reactive_input_ports[0].notify(3)
+
+        self.assertEqual({2, 5, 10}, obs.call_set)
 
 # class AsyncNodeTests(unittest.TestCase):
 #

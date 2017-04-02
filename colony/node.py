@@ -19,7 +19,7 @@ class Graph(object):
         for node in self.nodes:
             node.start()
 
-    def kill(self):
+    def stop(self):
         for node in self.nodes:
             print('Killing %s' % node)
             node.stop()
@@ -162,7 +162,6 @@ class Node(object):
 
         self.passive_input_ports = {}
         self.passive_input_values = {}
-        print('kwargs are %s'%str(target_info.kwargs))
         for kwarg in target_info.kwargs:
             kwip = KwargInputPort(kwarg.name)
             kwip.connect_to(self)
@@ -329,6 +328,6 @@ if __name__ == '__main__':
 
     print(node1.get_value())
 
-    obs.kill()
+    obs.stop()
     print('observer calls:')
     print(obs.calls)
