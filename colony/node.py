@@ -3,7 +3,7 @@ from queue import Queue
 from threading import Thread
 
 from colony.observer import Observer, Observable
-from inspect import signature
+from colony.utils.function_info import FunctionInfo
 
 
 class Graph(object):
@@ -22,7 +22,7 @@ class Graph(object):
     def kill(self):
         for node in self.nodes:
             print('Killing %s' % node)
-            node.kill()
+            node.stop()
 
 
 class OutputPort(Observable):
@@ -101,7 +101,7 @@ class Node(object):
     def __init__(self,
                  target=None,
                  reactive_input_ports=None,
-                 default_reactive_input_values = None,
+                 default_reactive_input_values=None,
                  node_args=None,
                  node_kwargs=None,
                  name=None):
@@ -124,8 +124,8 @@ class Node(object):
         """
         self._target = target
 
-        function_analyser = FunctionAnalyser(target)
-        num_reactive_input_ports = function_analyser.num_args
+        target_info = FunctionInfo(target)
+        num_reactive_input_ports = target_info.num_args
 
         if isinstance(reactive_input_ports, list):
             assert len(reactive_input_ports) == num_reactive_input_ports
@@ -162,8 +162,8 @@ class Node(object):
 
         self.passive_input_ports = {}
         self.passive_input_values = {}
-        print('kwargs are %s'%str(function_analyser.kwargs))
-        for kwarg in function_analyser.kwargs:
+        print('kwargs are %s'%str(target_info.kwargs))
+        for kwarg in target_info.kwargs:
             kwip = KwargInputPort(kwarg.name)
             kwip.connect_to(self)
             self.passive_input_ports[kwarg.name] = kwip
@@ -188,7 +188,7 @@ class Node(object):
     def execute(self, data, port):
         self.handle_input(data, port)
 
-    def kill(self):
+    def stop(self):
         pass
 
     def get_value(self):
@@ -222,20 +222,20 @@ class MapNode(Node):
         super(MapNode, self).__init__()
 
 
-class BatchNode(Node):
-    def __init__(self, batch_size):
-        super(BatchNode, self).__init__()
-        self.batch_size = batch_size
-
-    def execute(self, event):
-        for batch in self.chunks(event.payload):
-            self.node.execute(NodeEvent(batch))
-
-    def chunks(self, payload):
-        """ Yield successive n-sized chunks from l.
-        """
-        for i in range(0, len(payload), self.batch_size):
-            yield payload[i:i + self.batch_size]
+# class BatchNode(Node):
+#     def __init__(self, batch_size):
+#         super(BatchNode, self).__init__()
+#         self.batch_size = batch_size
+#
+#     def execute(self, event):
+#         for batch in self.chunks(event.payload):
+#             self.node.execute(NodeEvent(batch))
+#
+#     def chunks(self, payload):
+#         """ Yield successive n-sized chunks from l.
+#         """
+#         for i in range(0, len(payload), self.batch_size):
+#             yield payload[i:i + self.batch_size]
 
 
 class AsyncNode(Node):
@@ -245,8 +245,16 @@ class AsyncNode(Node):
                  async_class=Thread,
                  node_args=None,
                  node_kwargs=None,
-                 name=None):
-        super(AsyncNode, self).__init__(target=target, node_args=node_args, node_kwargs=node_kwargs, name=name)
+                 name=None,
+                 reactive_input_ports=None,
+                 default_reactive_input_values=None,
+                 ):
+        super(AsyncNode, self).__init__(target=target,
+                                        node_args=node_args,
+                                        node_kwargs=node_kwargs,
+                                        name=name,
+                                        reactive_input_ports=reactive_input_ports,
+                                        default_reactive_input_values=default_reactive_input_values)
 
         self.async_class = async_class
         self.queue_class = self.get_queue_class(async_class)
@@ -267,8 +275,8 @@ class AsyncNode(Node):
         for thread in self.worker_threads:
             thread.start()
 
-    def kill(self):
-        super(AsyncNode, self).kill()
+    def stop(self):
+        super(AsyncNode, self).stop()
         print('AsyncNode.kill()')
         for _ in self.worker_threads:
             self.worker_queue.put(PoisonPill())
@@ -293,28 +301,6 @@ class AsyncNode(Node):
                 super(AsyncNode, self).handle_input(data, idx, kwarg)
 
 
-class FunctionAnalyser(object):
-
-    def __init__(self, func):
-        self.func = func
-
-    @property
-    def num_args(self):
-        sig = self.signature
-        return len([x for x in sig.parameters.values() if x.default == sig.empty])
-
-    @property
-    def num_kwargs(self):
-        return len(self.kwargs)
-
-    @property
-    def kwargs(self):
-        sig = self.signature
-        return [x for x in sig.parameters.values() if x.default != sig.empty]
-
-    @property
-    def signature(self):
-        return signature(self.func)
 
 
 if __name__ == '__main__':

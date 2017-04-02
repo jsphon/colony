@@ -1,31 +1,12 @@
-
 import unittest
 from multiprocessing import Process
 from threading import Thread
 
 from colony.node import AsyncNode
-
-from colony.node import Graph, Node
+from colony.node import Graph, Node, MappingArgInputPort
 from colony.observer import RememberingObserver, ProcessSafeRememberingObserver
 
-
 EPS = 0.01
-
-
-def basic_target(payload):
-    return 'result %s' % payload
-
-
-def thread_target(payload):
-    return 'thread_target(%s)'%payload
-
-
-def target_with_arg(payload, arg):
-    return payload, arg
-
-
-def target_with_kwarg(payload, kwarg1=None):
-    return payload, kwarg1
 
 
 def _x_squared(x):
@@ -33,7 +14,6 @@ def _x_squared(x):
 
 
 class NodeTests(unittest.TestCase):
-
     def test_calls_observer(self):
         obs = RememberingObserver()
         col = Graph()
@@ -47,7 +27,6 @@ class NodeTests(unittest.TestCase):
         node.reactive_input_ports[0].notify(3)
 
         col.kill()
-        #obs.kill()
 
         print(obs.calls)
 
@@ -55,7 +34,6 @@ class NodeTests(unittest.TestCase):
 
 
 class AsyncNodeTests(unittest.TestCase):
-
     def test_kill(self):
         obs = ProcessSafeRememberingObserver()
         col = Graph()
@@ -72,12 +50,16 @@ class AsyncNodeTests(unittest.TestCase):
         self.assertEqual([], obs.calls)
 
     def test_calls_observer_process(self):
+        for async_class in (Thread, Process):
+            self.do_test_calls_observer_process(async_class)
+
+    def do_test_calls_observer_process(self, async_ckass):
         obs = ProcessSafeRememberingObserver()
         col = Graph()
 
         node = col.add(AsyncNode,
                        target=_x_squared,
-                       async_class=Process,
+                       async_class=async_ckass,
                        num_threads=1)
         node.output_port.register_observer(obs)
 
@@ -90,9 +72,34 @@ class AsyncNodeTests(unittest.TestCase):
         col.kill()
         obs.kill()
 
-        print(obs.calls)
-
         self.assertEqual([1, 4, 9], obs.calls)
+
+    def test_map(self):
+        for async_class in (Thread, Process,):
+            self.do_test_map(async_class)
+
+    def do_test_map(self, async_class):
+
+        obs = ProcessSafeRememberingObserver()
+        graph = Graph()
+
+        map_node = graph.add(AsyncNode,
+                             target=_x_squared,
+                             async_class=async_class,
+                             reactive_input_ports=MappingArgInputPort())
+        map_node.output_port.register_observer(obs)
+
+        graph.start()
+
+        map_node.reactive_input_ports[0].notify([1, 2, 3])
+        map_node.reactive_input_ports[0].notify([3, 4, 5])
+
+        graph.kill()
+        obs.kill()
+
+        expected = set([1, 4, 9, 9, 16, 25])
+        actual = set(obs.calls)
+        self.assertEqual(expected, actual)
 
 
 # class AsyncNodeTests(unittest.TestCase):
