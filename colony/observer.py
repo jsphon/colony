@@ -61,7 +61,7 @@ class ProcessSafeRememberingObserver(Observer):
         while True:
             event = self.q.get()
             if event:
-                self.calls.append(event.payload)
+                self.calls.append(event)
             else:
                 return
 

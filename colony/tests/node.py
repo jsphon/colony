@@ -55,6 +55,46 @@ class NodeTests(unittest.TestCase):
 
         self.assertEqual([1, 4, 9], obs.calls)
 
+
+class AsyncNodeTests(unittest.TestCase):
+
+    def test_kill(self):
+        obs = RememberingObserver()
+        col = Colony()
+
+        node = col.add(AsyncNode,
+                       target=_x_squared,
+                       async_class=Process)
+        node.output_port.register_observer(obs)
+
+        col.start()
+        col.kill()
+
+        self.assertEqual([], obs.calls)
+
+    def test_calls_observer(self):
+        obs = ProcessSafeRememberingObserver()
+        col = Colony()
+
+        node = col.add(AsyncNode,
+                       target=_x_squared,
+                       async_class=Process,
+                       num_threads=1)
+        node.output_port.register_observer(obs)
+
+        col.start()
+
+        node.reactive_input_ports[0].notify(1)
+        node.reactive_input_ports[0].notify(2)
+        node.reactive_input_ports[0].notify(3)
+
+        col.kill()
+        obs.kill()
+
+        print(obs.calls)
+
+        self.assertEqual([1, 4, 9], obs.calls)
+
 # class AsyncNodeTests(unittest.TestCase):
 #
 #     def test_execute(self):

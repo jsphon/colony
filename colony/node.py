@@ -58,18 +58,6 @@ class PoisonPill(NodeEvent):
         super(PoisonPill, self).__init__(payload=None)
 
 
-# class NodeArgEvent(NodeEvent):
-#     def __init__(self, payload, idx):
-#         super(NodeArgEvent, self).__init__(payload)
-#         self.idx = idx
-#
-#
-# class NodeKwargEvent(NodeEvent):
-#     def __init__(self, payload, kwarg):
-#         super(NodeKwargEvent, self).__init__(payload)
-#         self.kwarg = kwarg
-
-
 class InputPort(Observer):
 
     def __init__(self, node=None):
@@ -89,11 +77,15 @@ class ArgInputPort(InputPort):
         super(ArgInputPort, self).__init__(node=node)
         self.idx = idx
 
+    def notify(self, data):
+        self.node.handle_input(data, idx=self.idx)
+
 
 class MappingArgInputPort(ArgInputPort):
+
     def notify(self, data):
         for x in data:
-            self.node.handle_input(x, self)
+            self.node.handle_input(x, idx=self.idx)
 
 
 class KwargInputPort(InputPort):
@@ -101,6 +93,10 @@ class KwargInputPort(InputPort):
     def __init__(self, kwarg):
         super(KwargInputPort, self).__init__()
         self.kwarg = kwarg
+
+    def notify(self, data):
+        for x in data:
+            self.node.handle_input(x, kwarg=self.idx)
 
 
 # class BatchNodeInput(InputPort):
@@ -218,34 +214,19 @@ class Node(object):
     def start(self):
         pass
 
-    def handle_input(self, data, port):
-        print('handle_input(%s, %s)'%(data, port))
-        if isinstance(port, ArgInputPort):
-            # Reactive Input
-            self.reactive_input_values[port.idx] = data
+    def handle_input(self, data, idx=None, kwarg=None):
+
+        print('handle_input(%s, idx=%s, kwarg=%s)' % (data, idx, kwarg))
+
+        if idx is not None:
+            self.reactive_input_values[idx] = data
             result = self._target(*self.reactive_input_values, **self.passive_input_values)
             self._value = result
             self.handle_result(result)
-        elif isinstance(port, KwargInputPort):
-            # Passive Input
-            self.passive_input_values[port.kwarg] = data
+        elif kwarg is not None:
+            self.passive_input_values[kwarg] = data
         else:
-            print('Port not recognised %s'%str(port))
-
-    # def handle_event(self, event):
-    #     print('worker received event %s' % event)
-    #     if isinstance(event, PoisonPill):
-    #         return -1
-    #     elif isinstance(event, NodeArgEvent):
-    #         self.node_arg_values[event.idx] = event.payload
-    #     elif isinstance(event, NodeKwargEvent):
-    #         self.node_kwarg_values[event.kwarg] = event.payload
-    #     elif isinstance(event, NodeEvent):
-    #         result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
-    #         print('worker got result "%s"' % str(result))
-    #         self.handle_result(result)
-    #     else:
-    #         raise ValueError('Event type not recognised: %s' % type(event))
+            raise ValueError('Need to provide idx or kwarg')
 
     def handle_result(self, result):
         self._value = result
@@ -279,8 +260,6 @@ class BatchNode(Node):
 class AsyncNode(Node):
     def __init__(self,
                  target=None,
-                 input_port=None,
-                 output_port=None,
                  num_threads=10,
                  async_class=Thread,
                  node_args=None,
@@ -318,35 +297,40 @@ class AsyncNode(Node):
         for thread in self.worker_threads:
             thread.join()
 
-    def execute(self, event):
-        print('execute(%s)' % event)
-        self.worker_queue.put(event)
+    # def execute(self, event):
+    #     print('execute(%s)' % event)
+    #     self.worker_queue.put(event)
+
+    def handle_input(self, data, idx=None, kwarg=None):
+        self.worker_queue.put((data, idx, kwarg))
 
     def worker(self):
         while True:
-            event = self.worker_queue.get()
-            return_code = self.handle_event(event)
-            if return_code == -1:
-                return
+            data, idx, kwarg = self.worker_queue.get()
+            print('AsyncNode worker got stuff')
+            super(AsyncNode, self).handle_input(data, idx, kwarg)
+            # return_code = self.handle_event(event)
+            # if return_code == -1:
+            #     return
 
-    def handle_event(self, event):
-        print('worker received event %s' % event)
-        if isinstance(event, PoisonPill):
-            return -1
-        elif isinstance(event, NodeArgEvent):
-            self.node_arg_values[event.idx] = event.payload
-        elif isinstance(event, NodeKwargEvent):
-            self.node_kwarg_values[event.kwarg] = event.payload
-        elif isinstance(event, NodeEvent):
-            result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
-            print('worker got result "%s"' % str(result))
-            self.handle_result(result)
-        else:
-            raise ValueError('Event type not recognised: %s' % type(event))
+    # def handle_event(self, event):
+    #     print('worker received event %s' % event)
+    #     if isinstance(event, PoisonPill):
+    #         return -1
+    #     elif isinstance(event, NodeArgEvent):
+    #         self.node_arg_values[event.idx] = event.payload
+    #     elif isinstance(event, NodeKwargEvent):
+    #         self.node_kwarg_values[event.kwarg] = event.payload
+    #     elif isinstance(event, NodeEvent):
+    #         result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
+    #         print('worker got result "%s"' % str(result))
+    #         self.handle_result(result)
+    #     else:
+    #         raise ValueError('Event type not recognised: %s' % type(event))
 
-    def handle_result(self, result):
-        self._value = result
-        self.output_port.notify(NodeEvent(result))
+    # def handle_result(self, result):
+    #     self._value = result
+    #     self.output_port.notify(NodeEvent(result))
 
 
 class FunctionAnalyser(object):
