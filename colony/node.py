@@ -6,7 +6,7 @@ from colony.observer import Observer, Observable
 from inspect import signature
 
 
-class Colony(object):
+class Graph(object):
     def __init__(self):
         self.nodes = []
 
@@ -37,25 +37,9 @@ class OutputPort(Observable):
         self.notify_observers(data)
 
 
-class NodeEvent(object):
-    def __init__(self, payload):
-        self.payload = payload
+class PoisonPill(object):
 
-    def __repr__(self):
-        class_name = self.__class__.__name__
-        if self.payload:
-            s_payload = str(self.payload)
-            if len(s_payload) > 10:
-                s_payload = s_payload[:7] + '...'
-            return '<%s payload="%s">' % (class_name, s_payload)
-        else:
-            return '<%s>' % class_name
-
-
-class PoisonPill(NodeEvent):
-
-    def __init__(self):
-        super(PoisonPill, self).__init__(payload=None)
+    pass
 
 
 class InputPort(Observer):
@@ -95,8 +79,7 @@ class KwargInputPort(InputPort):
         self.kwarg = kwarg
 
     def notify(self, data):
-        for x in data:
-            self.node.handle_input(x, kwarg=self.idx)
+        self.node.handle_input(data, kwarg=self.kwarg)
 
 
 # class BatchNodeInput(InputPort):
@@ -216,8 +199,6 @@ class Node(object):
 
     def handle_input(self, data, idx=None, kwarg=None):
 
-        print('handle_input(%s, idx=%s, kwarg=%s)' % (data, idx, kwarg))
-
         if idx is not None:
             self.reactive_input_values[idx] = data
             result = self._target(*self.reactive_input_values, **self.passive_input_values)
@@ -273,7 +254,7 @@ class AsyncNode(Node):
         self.num_threads = num_threads
         self.worker_queue = self.queue_class()
 
-        self.worker_threads = []#[async_class(target=self.worker) for _ in range(num_threads)]
+        self.worker_threads = []
 
     def get_queue_class(self, async_class):
         if async_class == Thread:
@@ -297,10 +278,6 @@ class AsyncNode(Node):
         for thread in self.worker_threads:
             thread.join()
 
-    # def execute(self, event):
-    #     print('execute(%s)' % event)
-    #     self.worker_queue.put(event)
-
     def handle_input(self, data, idx=None, kwarg=None):
         self.worker_queue.put((data, idx, kwarg))
 
@@ -309,28 +286,6 @@ class AsyncNode(Node):
             data, idx, kwarg = self.worker_queue.get()
             print('AsyncNode worker got stuff')
             super(AsyncNode, self).handle_input(data, idx, kwarg)
-            # return_code = self.handle_event(event)
-            # if return_code == -1:
-            #     return
-
-    # def handle_event(self, event):
-    #     print('worker received event %s' % event)
-    #     if isinstance(event, PoisonPill):
-    #         return -1
-    #     elif isinstance(event, NodeArgEvent):
-    #         self.node_arg_values[event.idx] = event.payload
-    #     elif isinstance(event, NodeKwargEvent):
-    #         self.node_kwarg_values[event.kwarg] = event.payload
-    #     elif isinstance(event, NodeEvent):
-    #         result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
-    #         print('worker got result "%s"' % str(result))
-    #         self.handle_result(result)
-    #     else:
-    #         raise ValueError('Event type not recognised: %s' % type(event))
-
-    # def handle_result(self, result):
-    #     self._value = result
-    #     self.output_port.notify(NodeEvent(result))
 
 
 class FunctionAnalyser(object):
@@ -366,7 +321,7 @@ if __name__ == '__main__':
 
     obs = ProcessSafeRememberingObserver()
 
-    col = Colony()
+    col = Graph()
 
     node1 = col.add(Node, _target, name='node1',
                     default_reactive_input_values=[0, 0])

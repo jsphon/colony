@@ -5,9 +5,9 @@ from threading import Thread
 
 from mock import MagicMock
 
-from colony.node import AsyncNode, NodeEvent#, ListNodeInput, BatchNodeInput
+from colony.node import AsyncNode#, ListNodeInput, BatchNodeInput
 
-from colony.node import Colony, Node
+from colony.node import Graph, Node
 from colony.observer import RememberingObserver, ProcessSafeRememberingObserver
 
 
@@ -38,7 +38,7 @@ class NodeTests(unittest.TestCase):
 
     def test_calls_observer(self):
         obs = RememberingObserver()
-        col = Colony()
+        col = Graph()
 
         node = col.add(Node,
                        target=_x_squared, )
@@ -59,8 +59,8 @@ class NodeTests(unittest.TestCase):
 class AsyncNodeTests(unittest.TestCase):
 
     def test_kill(self):
-        obs = RememberingObserver()
-        col = Colony()
+        obs = ProcessSafeRememberingObserver()
+        col = Graph()
 
         node = col.add(AsyncNode,
                        target=_x_squared,
@@ -69,12 +69,13 @@ class AsyncNodeTests(unittest.TestCase):
 
         col.start()
         col.kill()
+        obs.kill()
 
         self.assertEqual([], obs.calls)
 
     def test_calls_observer(self):
         obs = ProcessSafeRememberingObserver()
-        col = Colony()
+        col = Graph()
 
         node = col.add(AsyncNode,
                        target=_x_squared,
@@ -94,6 +95,7 @@ class AsyncNodeTests(unittest.TestCase):
         print(obs.calls)
 
         self.assertEqual([1, 4, 9], obs.calls)
+
 
 # class AsyncNodeTests(unittest.TestCase):
 #

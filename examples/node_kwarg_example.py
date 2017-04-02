@@ -1,4 +1,4 @@
-from colony.node import Colony, Node, MappingArgInputPort
+from colony.node import Graph, Node, MappingArgInputPort
 from colony.observer import Observer
 
 
@@ -18,7 +18,7 @@ def _pow(x, a=1):
 if __name__ == '__main__':
 
     obs = RememberingObserver()
-    col = Colony()
+    col = Graph()
 
     node = col.add(Node,
         target=_pow,

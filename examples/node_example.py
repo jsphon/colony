@@ -1,4 +1,4 @@
-from colony.node import Colony, Node
+from colony.node import Graph, Node
 from colony.observer import RememberingObserver
 
 
@@ -9,7 +9,7 @@ def _x_squared(x):
 if __name__ == '__main__':
 
     obs = RememberingObserver()
-    col = Colony()
+    col = Graph()
 
     node = col.add(Node,
                    target=_x_squared,)

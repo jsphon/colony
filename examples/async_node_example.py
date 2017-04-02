@@ -1,6 +1,6 @@
 from multiprocessing import Process
 
-from colony.node import Colony, AsyncNode
+from colony.node import Graph, AsyncNode
 from colony.observer import ProcessSafeRememberingObserver
 
 
@@ -10,7 +10,7 @@ def x_squared(x):
 
 if __name__ == '__main__':
     obs = ProcessSafeRememberingObserver()
-    col = Colony()
+    col = Graph()
 
     node = col.add(AsyncNode,
                    target=x_squared,
