@@ -58,16 +58,16 @@ class PoisonPill(NodeEvent):
         super(PoisonPill, self).__init__(payload=None)
 
 
-class NodeArgEvent(NodeEvent):
-    def __init__(self, payload, idx):
-        super(NodeArgEvent, self).__init__(payload)
-        self.idx = idx
-
-
-class NodeKwargEvent(NodeEvent):
-    def __init__(self, payload, kwarg):
-        super(NodeKwargEvent, self).__init__(payload)
-        self.kwarg = kwarg
+# class NodeArgEvent(NodeEvent):
+#     def __init__(self, payload, idx):
+#         super(NodeArgEvent, self).__init__(payload)
+#         self.idx = idx
+#
+#
+# class NodeKwargEvent(NodeEvent):
+#     def __init__(self, payload, kwarg):
+#         super(NodeKwargEvent, self).__init__(payload)
+#         self.kwarg = kwarg
 
 
 class InputPort(Observer):
@@ -232,20 +232,20 @@ class Node(object):
         else:
             print('Port not recognised %s'%str(port))
 
-    def handle_event(self, event):
-        print('worker received event %s' % event)
-        if isinstance(event, PoisonPill):
-            return -1
-        elif isinstance(event, NodeArgEvent):
-            self.node_arg_values[event.idx] = event.payload
-        elif isinstance(event, NodeKwargEvent):
-            self.node_kwarg_values[event.kwarg] = event.payload
-        elif isinstance(event, NodeEvent):
-            result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
-            print('worker got result "%s"' % str(result))
-            self.handle_result(result)
-        else:
-            raise ValueError('Event type not recognised: %s' % type(event))
+    # def handle_event(self, event):
+    #     print('worker received event %s' % event)
+    #     if isinstance(event, PoisonPill):
+    #         return -1
+    #     elif isinstance(event, NodeArgEvent):
+    #         self.node_arg_values[event.idx] = event.payload
+    #     elif isinstance(event, NodeKwargEvent):
+    #         self.node_kwarg_values[event.kwarg] = event.payload
+    #     elif isinstance(event, NodeEvent):
+    #         result = self._target(event.payload, *self.node_arg_values, **self.node_kwarg_values)
+    #         print('worker got result "%s"' % str(result))
+    #         self.handle_result(result)
+    #     else:
+    #         raise ValueError('Event type not recognised: %s' % type(event))
 
     def handle_result(self, result):
         self._value = result
