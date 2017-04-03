@@ -82,19 +82,20 @@ class KwargInputPort(InputPort):
         self.node.handle_input(data, kwarg=self.kwarg)
 
 
-# class BatchNodeInput(InputPort):
-#     def __init__(self, batch_size):
-#         self.batch_size = batch_size
-#
-#     def notify(self, payload):
-#         for batch in self.chunks(payload):
-#             self.node.execute(NodeEvent(batch))
-#
-#     def chunks(self, payload):
-#         """ Yield successive n-sized chunks from l.
-#         """
-#         for i in range(0, len(payload), self.batch_size):
-#             yield payload[i:i + self.batch_size]
+class BatchArgInputPort(ArgInputPort):
+
+    def __init__(self, batch_size=1):
+        self.batch_size = batch_size
+
+    def notify(self, data):
+        for batch in self.chunks(data):
+            self.node.handle_input(batch, idx=self.idx)
+
+    def chunks(self, payload):
+        """ Yield successive n-sized chunks from l.
+        """
+        for i in range(0, len(payload), self.batch_size):
+            yield payload[i:i + self.batch_size]
 
 
 class Node(object):
@@ -184,8 +185,8 @@ class Node(object):
     def add_child(self, child_node):
         self.output_port.register_observer(child_node.input_port)
 
-    def execute(self, data, port):
-        self.handle_input(data, port)
+    # def execute(self, data, port):
+    #     self.handle_input(data, port)
 
     def stop(self):
         pass

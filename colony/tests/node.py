@@ -4,7 +4,7 @@ from threading import Thread
 import time
 
 from colony.node import AsyncNode
-from colony.node import Graph, Node, MappingArgInputPort
+from colony.node import Graph, Node, MappingArgInputPort, BatchArgInputPort
 from colony.observer import RememberingObserver, ProcessSafeRememberingObserver, Observable
 
 EPS = 0.01
@@ -20,6 +20,10 @@ def _x_plus_one(x):
 
 def _ax(x, a=1):
     return a*x
+
+
+def _x_squared_elements(lst):
+    return tuple(x*x for x in lst)
 
 
 class NodeTests(unittest.TestCase):
@@ -108,6 +112,35 @@ class AsyncNodeTests(unittest.TestCase):
 
         expected = set([1, 4, 9, 9, 16, 25])
         actual = set(obs.calls)
+        self.assertEqual(expected, actual)
+
+    def test_batch(self):
+        for async_class in (Thread, Process,):
+            self.do_test_batch(async_class)
+
+    def do_test_batch(self, async_class):
+
+        obs = ProcessSafeRememberingObserver()
+        graph = Graph()
+
+        batch_node = graph.add(AsyncNode,
+                               target=_x_squared_elements,
+                               async_class=async_class,
+                               reactive_input_ports=BatchArgInputPort(batch_size=2))
+        batch_node.output_port.register_observer(obs)
+
+        graph.start()
+
+        batch_node.reactive_input_ports[0].notify([1, 2, 3])
+        batch_node.reactive_input_ports[0].notify([3, 4, 5])
+
+        graph.stop()
+        obs.stop()
+
+        expected = set([(1, 4), (9, ), (9, 16), (25,)])
+        actual = set(obs.calls)
+        print('actual...')
+        print(actual)
         self.assertEqual(expected, actual)
 
     def test_node_args(self):
