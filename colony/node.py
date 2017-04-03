@@ -33,12 +33,10 @@ class OutputPort(Observable):
         self.node = node
 
     def notify(self, data):
-        print('OutputPort.notify(%s), notifying %i observers' % (data, len(self.observers)))
-        self.notify_observers(data)
+       self.notify_observers(data)
 
 
 class PoisonPill(object):
-
     pass
 
 
@@ -51,7 +49,6 @@ class InputPort(Observer):
         self.node = node
 
     def notify(self, data):
-        print('InputPort.notify(%s)' % data)
         self.node.handle_input(data, self)
 
 
@@ -106,23 +103,7 @@ class Node(object):
                  node_args=None,
                  node_kwargs=None,
                  name=None):
-        """ Processing unit of code
 
-        We have args and kwargs to allow this unit to retrieve changed
-        values from other nodes, that might be from other processes.
-        Do we really need them if we are using threading rather than
-        multi-processing?
-
-        Parameters
-        ----------
-        input_port : InputPort
-        output_port : OutputPort
-        node_args : list of nodes
-            represents a function argument that could change
-        node_kwargs : dict of nodes
-            represents a keyword argument that could change
-
-        """
         self._target = target
 
         target_info = FunctionInfo(target)
@@ -185,9 +166,6 @@ class Node(object):
     def add_child(self, child_node):
         self.output_port.register_observer(child_node.input_port)
 
-    # def execute(self, data, port):
-    #     self.handle_input(data, port)
-
     def stop(self):
         pass
 
@@ -212,30 +190,6 @@ class Node(object):
     def handle_result(self, result):
         self._value = result
         self.output_port.notify(result)
-
-
-class MapNode(Node):
-    """ Input should be iterable. Forwards the input's individual elements
-    to the output"""
-
-    def __init__(self):
-        super(MapNode, self).__init__()
-
-
-# class BatchNode(Node):
-#     def __init__(self, batch_size):
-#         super(BatchNode, self).__init__()
-#         self.batch_size = batch_size
-#
-#     def execute(self, event):
-#         for batch in self.chunks(event.payload):
-#             self.node.execute(NodeEvent(batch))
-#
-#     def chunks(self, payload):
-#         """ Yield successive n-sized chunks from l.
-#         """
-#         for i in range(0, len(payload), self.batch_size):
-#             yield payload[i:i + self.batch_size]
 
 
 class AsyncNode(Node):
@@ -277,7 +231,6 @@ class AsyncNode(Node):
 
     def stop(self):
         super(AsyncNode, self).stop()
-        print('AsyncNode.kill()')
         for _ in self.worker_threads:
             self.worker_queue.put(PoisonPill())
 
@@ -296,39 +249,5 @@ class AsyncNode(Node):
             if isinstance(payload, PoisonPill):
                 return
             else:
-                print('AsyncNode worker got %s'%str(payload))
                 data, idx, kwarg = payload
                 super(AsyncNode, self).handle_input(data, idx, kwarg)
-
-
-
-
-if __name__ == '__main__':
-    import time
-    from colony.observer import ProcessSafeRememberingObserver
-
-    def _target(a, b):
-        return a+b
-
-    obs = ProcessSafeRememberingObserver()
-
-    col = Graph()
-
-    node1 = col.add(Node, _target, name='node1',
-                    default_reactive_input_values=[0, 0])
-    node1.output_port.register_observer(obs)
-
-    col.start()
-
-    node1.reactive_input_ports[0].notify(1)
-    node1.reactive_input_ports[1].notify(2)
-
-    print(node1.get_value())
-
-    node1.reactive_input_ports[0].notify(2)
-
-    print(node1.get_value())
-
-    obs.stop()
-    print('observer calls:')
-    print(obs.calls)
