@@ -105,13 +105,15 @@ class AsyncNodeTests(unittest.TestCase):
         actual = set(obs.calls)
         self.assertEqual(expected, actual)
 
-    def test_arg(self):
+    def test_node_args(self):
 
         obs = RememberingObserver()
         col = Graph()
 
-        node1 = col.add(Node, target=_x_squared)
-        node2 = col.add(Node, target=_x_plus_one, node_args=node1)
+        node1 = col.add(AsyncNode, target=_x_squared)
+        node2 = col.add(AsyncNode, target=_x_plus_one, node_args=node1)
+
+        col.start()
 
         node2.output_port.register_observer(obs)
 
@@ -119,6 +121,8 @@ class AsyncNodeTests(unittest.TestCase):
         node1.reactive_input_ports[0].notify(2)
         node1.reactive_input_ports[0].notify(3)
 
+        print(obs.call_set)
+        col.stop()
         self.assertEqual({2, 5, 10}, obs.call_set)
 
 # class AsyncNodeTests(unittest.TestCase):

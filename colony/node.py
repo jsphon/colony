@@ -295,7 +295,7 @@ class AsyncNode(Node):
             if isinstance(payload, PoisonPill):
                 return
             else:
-                print('AsyncNode worker got stuff')
+                print('AsyncNode worker got %s'%str(payload))
                 data, idx, kwarg = payload
                 super(AsyncNode, self).handle_input(data, idx, kwarg)
 
