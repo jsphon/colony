@@ -166,6 +166,9 @@ class Node(object):
     def add_child(self, child_node):
         self.output_port.register_observer(child_node.input_port)
 
+    def notify(self, data, port_idx=0):
+        self.reactive_input_ports[port_idx].notify(data)
+
     def stop(self):
         pass
 

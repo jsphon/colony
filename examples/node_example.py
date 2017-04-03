@@ -15,8 +15,16 @@ if __name__ == '__main__':
                    target=_x_squared,)
     node.output_port.register_observer(obs)
 
+    # Long way to notify an input port
     node.reactive_input_ports[0].notify(1)
     node.reactive_input_ports[0].notify(2)
     node.reactive_input_ports[0].notify(3)
+
+    print(obs.calls)
+
+    # Short way to notify an input port
+    node.notify(1)
+    node.notify(2)
+    node.notify(3)
 
     print(obs.calls)

@@ -35,9 +35,9 @@ class NodeTests(unittest.TestCase):
         node = col.add(Node, target=_x_squared)
         node.output_port.register_observer(obs)
 
-        node.reactive_input_ports[0].notify(1)
-        node.reactive_input_ports[0].notify(2)
-        node.reactive_input_ports[0].notify(3)
+        node.notify(1)
+        node.notify(2)
+        node.notify(3)
 
         col.stop()
 
@@ -62,9 +62,9 @@ class AsyncNodeTests(unittest.TestCase):
 
         col.start()
 
-        node.reactive_input_ports[0].notify(1)
-        node.reactive_input_ports[0].notify(2)
-        node.reactive_input_ports[0].notify(3)
+        node.notify(1)
+        node.notify(2)
+        node.notify(3)
 
         col.stop()
         obs.stop()
@@ -88,8 +88,8 @@ class AsyncNodeTests(unittest.TestCase):
 
         graph.start()
 
-        map_node.reactive_input_ports[0].notify([1, 2, 3])
-        map_node.reactive_input_ports[0].notify([3, 4, 5])
+        map_node.notify([1, 2, 3])
+        map_node.notify([3, 4, 5])
 
         graph.stop()
         obs.stop()
@@ -115,8 +115,8 @@ class AsyncNodeTests(unittest.TestCase):
 
         graph.start()
 
-        batch_node.reactive_input_ports[0].notify([1, 2, 3])
-        batch_node.reactive_input_ports[0].notify([3, 4, 5])
+        batch_node.notify([1, 2, 3])
+        batch_node.notify([3, 4, 5])
 
         graph.stop()
         obs.stop()
@@ -137,9 +137,9 @@ class AsyncNodeTests(unittest.TestCase):
 
         node2.output_port.register_observer(obs)
 
-        node1.reactive_input_ports[0].notify(1)
-        node1.reactive_input_ports[0].notify(2)
-        node1.reactive_input_ports[0].notify(3)
+        node1.notify(1)
+        node1.notify(2)
+        node1.notify(3)
 
         col.stop()
         self.assertEqual({2, 5, 10}, obs.call_set)
@@ -156,15 +156,15 @@ class AsyncNodeTests(unittest.TestCase):
         col.start()
 
         # Node1 should output 1 * 2 = 2
-        node_a.reactive_input_ports[0].notify(1)
-        node1.reactive_input_ports[0].notify(2)
+        node_a.notify(1)
+        node1.notify(2)
 
         time.sleep(EPS)
 
         # Node2 should output 2 * 3 = 6
-        node_a.reactive_input_ports[0].notify(2)
+        node_a.notify(2)
         time.sleep(EPS) # Need to wait to allow the data to propagate to node1
-        node1.reactive_input_ports[0].notify(3)
+        node1.notify(3)
 
         col.stop()
 

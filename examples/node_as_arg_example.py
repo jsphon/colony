@@ -20,8 +20,8 @@ if __name__ == '__main__':
 
     node2.output_port.register_observer(obs)
 
-    node1.reactive_input_ports[0].notify(1)
-    node1.reactive_input_ports[0].notify(2)
-    node1.reactive_input_ports[0].notify(3)
+    node1.notify(1)
+    node1.notify(2)
+    node1.notify(3)
 
     print(obs.calls)
