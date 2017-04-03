@@ -21,8 +21,8 @@ class Graph(object):
 
     def stop(self):
         for node in self.nodes:
-            print('Killing %s' % node)
-            node.stop()
+            if isinstance(node, AsyncNode):
+                node.stop()
 
 
 class OutputPort(Observable):
@@ -81,7 +81,8 @@ class KwargInputPort(InputPort):
 
 class BatchArgInputPort(ArgInputPort):
 
-    def __init__(self, batch_size=1):
+    def __init__(self, batch_size=1, idx=None, node=None):
+        super(BatchArgInputPort, self).__init__(idx=idx, node=node)
         self.batch_size = batch_size
 
     def notify(self, data):
@@ -163,20 +164,11 @@ class Node(object):
         else:
             return '<%s>' % class_name
 
-    def add_child(self, child_node):
-        self.output_port.register_observer(child_node.input_port)
-
     def notify(self, data, port_idx=0):
         self.reactive_input_ports[port_idx].notify(data)
 
-    def stop(self):
-        pass
-
     def get_value(self):
         return self._value
-
-    def start(self):
-        pass
 
     def handle_input(self, data, idx=None, kwarg=None):
 
@@ -233,10 +225,8 @@ class AsyncNode(Node):
             thread.start()
 
     def stop(self):
-        super(AsyncNode, self).stop()
         for _ in self.worker_threads:
             self.worker_queue.put(PoisonPill())
-
         self.join()
 
     def join(self):
