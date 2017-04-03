@@ -1,10 +1,11 @@
 import unittest
 from multiprocessing import Process
 from threading import Thread
+import time
 
 from colony.node import AsyncNode
 from colony.node import Graph, Node, MappingArgInputPort
-from colony.observer import RememberingObserver, ProcessSafeRememberingObserver
+from colony.observer import RememberingObserver, ProcessSafeRememberingObserver, Observable
 
 EPS = 0.01
 
@@ -15,6 +16,10 @@ def _x_squared(x):
 
 def _x_plus_one(x):
     return x + 1
+
+
+def _ax(x, a=1):
+    return a*x
 
 
 class NodeTests(unittest.TestCase):
@@ -121,9 +126,34 @@ class AsyncNodeTests(unittest.TestCase):
         node1.reactive_input_ports[0].notify(2)
         node1.reactive_input_ports[0].notify(3)
 
-        print(obs.call_set)
         col.stop()
         self.assertEqual({2, 5, 10}, obs.call_set)
+
+    def test_node_kwargs(self):
+
+        obs = RememberingObserver()
+        col = Graph()
+
+        node_a = col.add(AsyncNode, target=_ax)
+        node1 = col.add(AsyncNode, target=_ax, node_kwargs={'a':node_a})
+        node1.output_port.register_observer(obs)
+
+        col.start()
+
+        # Node1 should output 1 * 2 = 2
+        node_a.reactive_input_ports[0].notify(1)
+        node1.reactive_input_ports[0].notify(2)
+
+        time.sleep(EPS)
+
+        # Node2 should output 2 * 3 = 6
+        node_a.reactive_input_ports[0].notify(2)
+        time.sleep(EPS) # Need to wait to allow the data to propagate to node1
+        node1.reactive_input_ports[0].notify(3)
+
+        col.stop()
+
+        self.assertEqual({2, 6}, obs.call_set)
 
 # class AsyncNodeTests(unittest.TestCase):
 #
