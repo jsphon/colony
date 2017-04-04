@@ -1,4 +1,6 @@
 import multiprocessing
+
+from multiprocessing import Process
 from queue import Queue
 from threading import Thread
 
@@ -15,9 +17,19 @@ class Graph(object):
         self.nodes.append(new_node)
         return new_node
 
+    def add_node(self, *args, **kwargs):
+        return self.add(Node, *args, **kwargs)
+
+    def add_thread_node(self, *args, **kwargs):
+        return self.add(AsyncNode, async_class=Thread, *args, **kwargs)
+
+    def add_process_node(self, *args, **kwargs):
+        return self.add(AsyncNode, async_class=Process, *args, **kwargs)
+
     def start(self):
         for node in self.nodes:
-            node.start()
+            if isinstance(node, AsyncNode):
+                node.start()
 
     def stop(self):
         for node in self.nodes:
@@ -166,6 +178,11 @@ class Node(object):
 
     def notify(self, data, port_idx=0):
         self.reactive_input_ports[port_idx].notify(data)
+
+    def notify_items(self, lst, port_idx=0):
+        port = self.reactive_input_ports[port_idx]
+        for data in lst:
+            port.notify(data)
 
     def get_value(self):
         return self._value

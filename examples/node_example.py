@@ -23,8 +23,9 @@ if __name__ == '__main__':
     print(obs.calls)
 
     # Short way to notify an input port
-    node.notify(1)
-    node.notify(2)
-    node.notify(3)
+    obs.calls.clear()
+    node.notify(4)
+    node.notify(5)
+    node.notify(6)
 
     print(obs.calls)
