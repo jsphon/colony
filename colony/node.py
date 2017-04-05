@@ -5,6 +5,7 @@ from queue import Queue
 from threading import Thread
 
 from colony.observer import Observer, Observable
+from colony.persistent_variable import PersistentVariable
 from colony.utils.function_info import FunctionInfo
 
 
@@ -187,12 +188,14 @@ class Node(object):
     def get_value(self):
         return self._value
 
+    def set_value(self, value):
+        self._value = value
+
     def handle_input(self, data, idx=None, kwarg=None):
 
         if idx is not None:
             self.reactive_input_values[idx] = data
             result = self._target(*self.reactive_input_values, **self.passive_input_values)
-            self._value = result
             self.handle_result(result)
         elif kwarg is not None:
             self.passive_input_values[kwarg] = data
@@ -200,8 +203,23 @@ class Node(object):
             raise ValueError('Need to provide idx or kwarg')
 
     def handle_result(self, result):
-        self._value = result
+        self.set_value(result)
         self.output_port.notify(result)
+
+
+class PersistentNode(Node):
+    """ This Node's value will persist between different instance lifetimes """
+
+    def __init__(self, *args, **kwargs):
+        super(PersistentNode, self).__init__(*args, **kwargs)
+        self.persistent_value = PersistentVariable(self.name)
+        self.persistent_value.refresh()
+
+    def get_value(self):
+        return self.persistent_value.get_value()
+
+    def set_value(self, value):
+        self.persistent_value.set_value(value)
 
 
 class AsyncNode(Node):
