@@ -1,5 +1,4 @@
 import multiprocessing
-
 from multiprocessing import Process
 from queue import Queue
 from threading import Thread
@@ -46,7 +45,7 @@ class OutputPort(Observable):
         self.node = node
 
     def notify(self, data):
-       self.notify_observers(data)
+        self.notify_observers(data)
 
 
 class PoisonPill(object):
@@ -54,7 +53,6 @@ class PoisonPill(object):
 
 
 class InputPort(Observer):
-
     def __init__(self, node=None):
         self.node = node
 
@@ -66,7 +64,6 @@ class InputPort(Observer):
 
 
 class ArgInputPort(InputPort):
-
     def __init__(self, idx=None, node=None):
         super(ArgInputPort, self).__init__(node=node)
         self.idx = idx
@@ -76,14 +73,12 @@ class ArgInputPort(InputPort):
 
 
 class MappingArgInputPort(ArgInputPort):
-
     def notify(self, data):
         for x in data:
             self.node.handle_input(x, idx=self.idx)
 
 
 class KwargInputPort(InputPort):
-
     def __init__(self, kwarg):
         super(KwargInputPort, self).__init__()
         self.kwarg = kwarg
@@ -93,7 +88,6 @@ class KwargInputPort(InputPort):
 
 
 class BatchArgInputPort(ArgInputPort):
-
     def __init__(self, batch_size=1, idx=None, node=None):
         super(BatchArgInputPort, self).__init__(idx=idx, node=node)
         self.batch_size = batch_size
@@ -220,6 +214,33 @@ class PersistentNode(Node):
 
     def set_value(self, value):
         self.persistent_value.set_value(value)
+
+
+class DictionaryNode(PersistentNode):
+    def __init__(self, *args, **kwargs):
+        super(DictionaryNode, self).__init__(target=self.__target, *args, **kwargs)
+        self._target = self.__target
+        value = self.get_value()
+        if not value:
+            print('Setting to empty dict')
+            self.set_value(dict())
+        else:
+            print('Value had existing value of %s'%value)
+
+    def __target(self, payload):
+        action, data = payload
+        if action == 'update':
+            value = self.get_value()
+            value.update(data)
+            return value
+        elif action == 'delete':
+            value = self.get_value()
+            for x in data:
+                if x in value:
+                    value.pop(x)
+            return value
+        else:
+            raise ValueError('action %s not recognised' % action)
 
 
 class AsyncNode(Node):
