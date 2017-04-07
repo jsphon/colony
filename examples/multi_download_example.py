@@ -34,8 +34,8 @@ if __name__ == '__main__':
 
     col = Graph()
 
-    download_node = col.add_thread_node(target=download_data)
-    saving_node = col.add_thread_node(target=save_data, num_threads=1, node_args=download_node)
+    download_node = col.add_thread_node(target_func=download_data)
+    saving_node = col.add_thread_node(target_func=save_data, num_threads=1, node_args=download_node)
 
     col.start()
 

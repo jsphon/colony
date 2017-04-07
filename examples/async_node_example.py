@@ -13,7 +13,7 @@ if __name__ == '__main__':
     col = Graph()
 
     node = col.add(AsyncNode,
-                   target=x_squared,
+                   target_func=x_squared,
                    async_class=Process)
     node.output_port.register_observer(obs)
 

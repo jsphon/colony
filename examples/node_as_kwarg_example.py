@@ -15,8 +15,8 @@ if __name__ == '__main__':
     obs = RememberingObserver()
     col = Graph()
 
-    node1 = col.add(Node, target=x_squared)
-    node2 = col.add(Node, target=x_plus_a, node_kwargs={'a':node1})
+    node1 = col.add(Node, target_func=x_squared)
+    node2 = col.add(Node, target_func=x_plus_a, node_kwargs={'a':node1})
 
     node2.output_port.register_observer(obs)
 

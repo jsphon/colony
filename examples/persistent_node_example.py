@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
     graph = Graph()
 
-    persistent_node = graph.add(PersistentNode, target=get_data, name='example')
+    persistent_node = graph.add(PersistentNode, target_func=get_data, name='example')
 
     print('Persistent node value initialised at %s' % persistent_node.get_value())
 

@@ -11,7 +11,7 @@ if __name__ == '__main__':
     col = Graph()
 
     map_node = col.add(Node,
-                       target=target,
+                       target_func=target,
                        reactive_input_ports=MappingArgInputPort())
     map_node.output_port.register_observer(obs)
 

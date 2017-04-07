@@ -12,7 +12,7 @@ if __name__ == '__main__':
     col = Graph()
 
     node = col.add(Node,
-                   target=_x_squared,)
+                   target_func=_x_squared,)
     node.output_port.register_observer(obs)
 
     # Long way to notify an input port

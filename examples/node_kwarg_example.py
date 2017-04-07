@@ -11,7 +11,7 @@ if __name__ == '__main__':
     obs = RememberingObserver()
     col = Graph()
 
-    node = col.add(Node, target=_pow)
+    node = col.add(Node, target_func=_pow)
 
     node.output_port.register_observer(obs)
 
