@@ -28,12 +28,12 @@ class Graph(object):
 
     def start(self):
         for node in self.nodes:
-            if isinstance(node, AsyncNode):
+            if hasattr(node, 'start'):
                 node.start()
 
     def stop(self):
         for node in self.nodes:
-            if isinstance(node, AsyncNode):
+            if hasattr(node, 'stop'):
                 node.stop()
 
 
@@ -105,17 +105,31 @@ class BatchArgInputPort(ArgInputPort):
 
 class Node(object):
     def __init__(self,
-                 target=None,
+                 target_func=None,
+                 target_class=None,
+                 target_class_args=None,
+                 target_class_kwargs=None,
                  reactive_input_ports=None,
                  default_reactive_input_values=None,
                  node_args=None,
                  node_kwargs=None,
                  name=None):
 
-        self._target = target
+        self._target_func = target_func
+        self.target_class = target_class
+        self.target_class_args = target_class_args or []
+        self.target_class_kwargs = target_class_kwargs or {}
+        self.target_instance = None
 
-        target_info = FunctionInfo(target)
-        num_reactive_input_ports = target_info.num_args
+        if target_func and target_class is None:
+            target_info = FunctionInfo(target_func)
+            num_reactive_input_ports = target_info.num_args
+        elif target_class:
+            target_info = FunctionInfo(self.target_class.execute)
+            # Subtract 1 to ignore the self argument
+            num_reactive_input_ports = target_info.num_args-1
+        else:
+            raise ValueError('Provide target_func OR target_class')
 
         if isinstance(reactive_input_ports, list):
             assert len(reactive_input_ports) == num_reactive_input_ports
@@ -127,13 +141,11 @@ class Node(object):
             self.reactive_input_ports = [reactive_input_ports]
             self.reactive_input_ports[0].idx = 0
             self.reactive_input_ports[0].connect_to(self)
-        elif num_reactive_input_ports:
+        else:
             self.reactive_input_ports = []
             for i in range(num_reactive_input_ports):
                 rip = ArgInputPort(i, self)
                 self.reactive_input_ports.append(rip)
-        else:
-            raise ValueError('Need to provide some reactive input ports')
 
         if default_reactive_input_values:
             self.reactive_input_values = default_reactive_input_values
@@ -189,7 +201,7 @@ class Node(object):
 
         if idx is not None:
             self.reactive_input_values[idx] = data
-            result = self._target(*self.reactive_input_values, **self.passive_input_values)
+            result = self._target_func(*self.reactive_input_values, **self.passive_input_values)
             self.handle_result(result)
         elif kwarg is not None:
             self.passive_input_values[kwarg] = data
@@ -199,6 +211,14 @@ class Node(object):
     def handle_result(self, result):
         self.set_value(result)
         self.output_port.notify(result)
+
+    def start(self):
+        if self.target_class:
+            self.initialise_target_instance()
+
+    def initialise_target_instance(self):
+        self.target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
+        self._target_func = self.target_instance.execute
 
 
 class PersistentNode(Node):
@@ -218,14 +238,14 @@ class PersistentNode(Node):
 
 class DictionaryNode(PersistentNode):
     def __init__(self, *args, **kwargs):
-        super(DictionaryNode, self).__init__(target=self.__target, *args, **kwargs)
+        super(DictionaryNode, self).__init__(target_func=self.__target, *args, **kwargs)
         self._target = self.__target
         value = self.get_value()
         if not value:
             print('Setting to empty dict')
             self.set_value(dict())
         else:
-            print('Value had existing value of %s'%value)
+            print('Value had existing value of %s' % value)
 
     def __target(self, payload):
         action, data = payload
@@ -247,7 +267,7 @@ class DictionaryNode(PersistentNode):
 
 class AsyncNode(Node):
     def __init__(self,
-                 target=None,
+                 target_func=None,
                  num_threads=10,
                  async_class=Thread,
                  node_args=None,
@@ -256,7 +276,7 @@ class AsyncNode(Node):
                  reactive_input_ports=None,
                  default_reactive_input_values=None,
                  ):
-        super(AsyncNode, self).__init__(target=target,
+        super(AsyncNode, self).__init__(target_func=target_func,
                                         node_args=node_args,
                                         node_kwargs=node_kwargs,
                                         name=name,
@@ -303,3 +323,29 @@ def _get_queue_class(async_class):
         return Queue
     elif async_class == multiprocessing.Process:
         return multiprocessing.Queue
+
+
+if __name__ == '__main__':
+
+    class TargetClass(object):
+
+        def __init__(self, c):
+            print('setting data')
+            self.data = set([c])
+
+        def execute(self, x):
+            self.data.add(x)
+            return self.data
+
+
+    n = Node(target_class=TargetClass, target_class_args=(0,))
+    n.start()
+
+    n.notify(1)
+    print(n.get_value())
+
+    n.notify(2)
+    print(n.get_value())
+
+    n.notify(3)
+    print(n.get_value())

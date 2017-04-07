@@ -34,7 +34,7 @@ class NodeTests(unittest.TestCase):
         obs = RememberingObserver()
         col = Graph()
 
-        node = col.add(Node, target=_x_squared)
+        node = col.add(Node, target_func=_x_squared)
         node.output_port.register_observer(obs)
 
         node.notify(1)
@@ -44,6 +44,30 @@ class NodeTests(unittest.TestCase):
         col.stop()
 
         self.assertEqual([1, 4, 9], obs.calls)
+
+    def test_target_func_class(self):
+
+        class target_funcClass(object):
+            def __init__(self, c):
+                print('Initialising target_funcClass')
+                self.data = set([c])
+                print('data is %s'%str(self.data))
+
+            def execute(self, x):
+                self.data.add(x)
+                return self.data
+
+        n = Node(target_class=target_funcClass, target_class_args=(0,))
+        n.start()
+
+        n.notify(1)
+        self.assertEqual({0, 1}, n.get_value())
+
+        n.notify(2)
+        self.assertEqual({0, 1, 2}, n.get_value())
+
+        n.notify(3)
+        self.assertEqual({0, 1, 2, 3}, n.get_value())
 
 
 class DictionaryNodeTests(unittest.TestCase):
@@ -87,7 +111,6 @@ class DictionaryNodeTests(unittest.TestCase):
         self.assertEqual({}, d2.get_value())
 
 
-
 class AsyncNodeTests(unittest.TestCase):
 
     def test_calls_observer_process(self):
@@ -99,7 +122,7 @@ class AsyncNodeTests(unittest.TestCase):
         col = Graph()
 
         node = col.add(AsyncNode,
-                       target=_x_squared,
+                       target_func=_x_squared,
                        async_class=async_ckass,
                        num_threads=1)
         node.output_port.register_observer(obs)
@@ -125,7 +148,7 @@ class AsyncNodeTests(unittest.TestCase):
         graph = Graph()
 
         map_node = graph.add(AsyncNode,
-                             target=_x_squared,
+                             target_func=_x_squared,
                              async_class=async_class,
                              reactive_input_ports=MappingArgInputPort())
         map_node.output_port.register_observer(obs)
@@ -152,7 +175,7 @@ class AsyncNodeTests(unittest.TestCase):
         graph = Graph()
 
         batch_node = graph.add(AsyncNode,
-                               target=_x_squared_elements,
+                               target_func=_x_squared_elements,
                                async_class=async_class,
                                reactive_input_ports=BatchArgInputPort(batch_size=2))
         batch_node.output_port.register_observer(obs)
@@ -174,8 +197,8 @@ class AsyncNodeTests(unittest.TestCase):
         obs = RememberingObserver()
         col = Graph()
 
-        node1 = col.add(AsyncNode, target=_x_squared)
-        node2 = col.add(AsyncNode, target=_x_plus_one, node_args=node1)
+        node1 = col.add(AsyncNode, target_func=_x_squared)
+        node2 = col.add(AsyncNode, target_func=_x_plus_one, node_args=node1)
 
         col.start()
 
@@ -193,8 +216,8 @@ class AsyncNodeTests(unittest.TestCase):
         obs = RememberingObserver()
         col = Graph()
 
-        node_a = col.add(AsyncNode, target=_ax)
-        node1 = col.add(AsyncNode, target=_ax, node_kwargs={'a':node_a})
+        node_a = col.add(AsyncNode, target_func=_ax)
+        node1 = col.add(AsyncNode, target_func=_ax, node_kwargs={'a':node_a})
         node1.output_port.register_observer(obs)
 
         col.start()
