@@ -235,6 +235,8 @@ class DictionaryNode(PersistentNode):
             return value
         elif action == 'delete':
             value = self.get_value()
+            if not isinstance(data, (list, tuple, set)):
+                data = (data,)
             for x in data:
                 if x in value:
                     value.pop(x)
@@ -262,18 +264,12 @@ class AsyncNode(Node):
                                         default_reactive_input_values=default_reactive_input_values)
 
         self.async_class = async_class
-        self.queue_class = self.get_queue_class(async_class)
+        self.queue_class = _get_queue_class(async_class)
 
         self.num_threads = num_threads
         self.worker_queue = self.queue_class()
 
         self.worker_threads = []
-
-    def get_queue_class(self, async_class):
-        if async_class == Thread:
-            return Queue
-        elif async_class == multiprocessing.Process:
-            return multiprocessing.Queue
 
     def start(self):
         self.worker_threads = [self.async_class(target=self.worker) for _ in range(self.num_threads)]
@@ -300,3 +296,10 @@ class AsyncNode(Node):
             else:
                 data, idx, kwarg = payload
                 super(AsyncNode, self).handle_input(data, idx, kwarg)
+
+
+def _get_queue_class(async_class):
+    if async_class == Thread:
+        return Queue
+    elif async_class == multiprocessing.Process:
+        return multiprocessing.Queue

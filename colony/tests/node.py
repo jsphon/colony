@@ -2,8 +2,10 @@ import unittest
 from multiprocessing import Process
 from threading import Thread
 import time
+import os
+import tempfile
 
-from colony.node import AsyncNode
+from colony.node import AsyncNode, DictionaryNode
 from colony.node import Graph, Node, MappingArgInputPort, BatchArgInputPort
 from colony.observer import RememberingObserver, ProcessSafeRememberingObserver, Observable
 
@@ -42,6 +44,48 @@ class NodeTests(unittest.TestCase):
         col.stop()
 
         self.assertEqual([1, 4, 9], obs.calls)
+
+
+class DictionaryNodeTests(unittest.TestCase):
+
+    def setUp(self):
+        self.name = os.path.basename(tempfile.NamedTemporaryFile().name)
+        self.dictionary_node = DictionaryNode(name=self.name)
+
+    def test_get_value(self):
+
+        self.assertEqual({}, self.dictionary_node.get_value())
+
+    def test_notify_update_and_get_value(self):
+
+        self.dictionary_node.notify(('update', {'hello': 'world'}))
+
+        self.assertEqual({'hello': 'world'}, self.dictionary_node.get_value())
+
+    def test_notify_update_delete_and_get_value(self):
+
+        self.dictionary_node.notify(('update', {'hello': 'world'}))
+        self.dictionary_node.notify(('delete', 'hello'))
+
+        self.assertEqual({}, self.dictionary_node.get_value())
+
+    def test_notify_and_get_value_recovers(self):
+
+        self.dictionary_node.notify(('update', {'hello': 'world'}))
+
+        d2 = DictionaryNode(name=self.name)
+
+        self.assertEqual({'hello': 'world'}, d2.get_value())
+
+    def test_notify_update_delete_and_get_value_recovers(self):
+
+        self.dictionary_node.notify(('update', {'hello': 'world'}))
+        self.dictionary_node.notify(('delete', 'hello'))
+
+        d2 = DictionaryNode(name=self.name)
+
+        self.assertEqual({}, d2.get_value())
+
 
 
 class AsyncNodeTests(unittest.TestCase):
