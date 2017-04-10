@@ -183,8 +183,11 @@ class Node(object):
         else:
             return '<%s>' % class_name
 
-    def notify(self, data, port_idx=0):
-        self.reactive_input_ports[port_idx].notify(data)
+    def notify(self, data=None, port_idx=0):
+        if data is None:
+            self.handle_input(data, None, None)
+        else:
+            self.reactive_input_ports[port_idx].notify(data)
 
     def notify_items(self, lst, port_idx=0):
         port = self.reactive_input_ports[port_idx]
@@ -197,7 +200,7 @@ class Node(object):
     def set_value(self, value):
         self._value = value
 
-    def handle_input(self, data, idx=None, kwarg=None):
+    def handle_input(self, data=None, idx=None, kwarg=None):
 
         if idx is not None:
             self.reactive_input_values[idx] = data
@@ -206,7 +209,8 @@ class Node(object):
         elif kwarg is not None:
             self.passive_input_values[kwarg] = data
         else:
-            raise ValueError('Need to provide idx or kwarg')
+            result = self._target_func(*self.reactive_input_values, **self.passive_input_values)
+            self.handle_result(result)
 
     def handle_result(self, result):
         self.set_value(result)
@@ -251,6 +255,7 @@ class DictionaryNode(PersistentNode):
         action, data = payload
         if action == 'update':
             value = self.get_value()
+            print('Updating %s with %s'%(value, data))
             value.update(data)
             return value
         elif action == 'delete':
@@ -305,7 +310,7 @@ class AsyncNode(Node):
         for thread in self.worker_threads:
             thread.join()
 
-    def handle_input(self, data, idx=None, kwarg=None):
+    def handle_input(self, data=None, idx=None, kwarg=None):
         self.worker_queue.put((data, idx, kwarg))
 
     def worker(self):
