@@ -1,4 +1,5 @@
-from colony.node import Graph, PersistentNode
+from colony.node import PersistentNode
+
 
 def get_data(seed):
     import datetime
@@ -8,16 +9,14 @@ def get_data(seed):
 
 if __name__ == '__main__':
 
-    graph = Graph()
-
-    persistent_node = graph.add(PersistentNode, target_func=get_data, name='example')
+    persistent_node = PersistentNode(target_func=get_data, name='example')
 
     print('Persistent node value initialised at %s' % persistent_node.get_value())
 
-    graph.start()
-
     persistent_node.notify(0)
 
-    graph.stop()
-
     print('Persistent Node Ended at %s' % persistent_node.get_value())
+
+    recovered_node = PersistentNode(target_func=get_data, name='example')
+
+    print('Recovered Node has value at %s' % recovered_node.get_value())
