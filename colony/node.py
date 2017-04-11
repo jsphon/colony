@@ -127,7 +127,7 @@ class Node(object):
         elif target_class:
             target_info = FunctionInfo(self.target_class.execute)
             # Subtract 1 to ignore the self argument
-            num_reactive_input_ports = target_info.num_args-1
+            num_reactive_input_ports = target_info.num_args - 1
         else:
             raise ValueError('Provide target_func OR target_class')
 
@@ -255,7 +255,7 @@ class DictionaryNode(PersistentNode):
         action, data = payload
         if action == 'update':
             value = self.get_value()
-            print('Updating %s with %s'%(value, data))
+            print('Updating %s with %s' % (value, data))
             value.update(data)
             return value
         elif action == 'delete':
@@ -331,9 +331,7 @@ def _get_queue_class(async_class):
 
 
 if __name__ == '__main__':
-
     class TargetClass(object):
-
         def __init__(self, c):
             print('setting data')
             self.data = set([c])
