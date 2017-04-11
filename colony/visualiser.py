@@ -5,7 +5,7 @@ from subprocess import call
 import pygraphviz as pgv
 
 
-def display_graph(g):
+def display_graph(g, layout='dot'):
     """ Display the graph locally
         Currently only works on Ubuntu
     """
@@ -13,7 +13,7 @@ def display_graph(g):
     basename = '%s.png' % tempfile.TemporaryFile().name
     path = os.path.join(tempfile.tempdir, basename)
     gg = g.copy()
-    gg.layout()
+    gg.layout(layout)
     gg.draw(path)
 
     call(['xdg-open', path])
