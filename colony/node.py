@@ -60,7 +60,7 @@ class InputPort(Observer):
         self.node = node
 
     def notify(self, data):
-        self.node.handle_input(data, self)
+        self.node.handle_input(data)
 
 
 class ArgInputPort(InputPort):
