@@ -242,8 +242,7 @@ class PersistentNode(Node):
 
 class DictionaryNode(PersistentNode):
     def __init__(self, *args, **kwargs):
-        super(DictionaryNode, self).__init__(target_func=self.__target, *args, **kwargs)
-        self._target = self.__target
+        super(DictionaryNode, self).__init__(target_func=self.remember_dict, *args, **kwargs)
         value = self.get_value()
         if not value:
             print('Setting to empty dict')
@@ -251,7 +250,7 @@ class DictionaryNode(PersistentNode):
         else:
             print('Value had existing value of %s' % value)
 
-    def __target(self, payload):
+    def remember_dict(self, payload):
         action, data = payload
         if action == 'update':
             value = self.get_value()

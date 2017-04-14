@@ -18,10 +18,10 @@ class AuctionListener(Graph):
                                              node_args=(self.update_node,),
                                              name=name)
 
-        self.get_prices_node = self.add_node(get_prices,
+        self.get_prices_node = self.add_thread_node(get_prices,
                                              node_kwargs={'auction_catalogue': self.active_auctions_node})
 
-        self.save_prices_node = self.add_node(save_prices,
+        self.save_prices_node = self.add_thread_node(save_prices,
                                               node_args=(self.get_prices_node,),
                                               node_kwargs={'auction_catalogue': self.active_auctions_node})
 
