@@ -329,8 +329,14 @@ def _get_queue_class(async_class):
         return multiprocessing.Queue
 
 
+class TargetClass(object):
+
+    def execute(self, *args, **kwargs):
+        pass
+
 if __name__ == '__main__':
-    class TargetClass(object):
+
+    class ExampleTargetClass(TargetClass):
         def __init__(self, c):
             print('setting data')
             self.data = set([c])
@@ -340,7 +346,7 @@ if __name__ == '__main__':
             return self.data
 
 
-    n = Node(target_class=TargetClass, target_class_args=(0,))
+    n = Node(target_class=ExampleTargetClass, target_class_args=(0,))
     n.start()
 
     n.notify(1)
