@@ -13,6 +13,15 @@ def display_colony_graph(g, layout='dot'):
     for n in g.nodes:
         src = n._target_func.__name__
 
+        if isinstance(n, AsyncNode):
+            shape = 'doublecircle'
+            fillcolor = 'green'
+        else:
+            shape = 'circle'
+            fillcolor = 'white'
+
+        A.add_node(src, shape=shape, fillcolor=fillcolor, style='filled')
+
         for e in n.output_port.observers:
             if e in e.node.reactive_input_ports:
                 color = 'red'
