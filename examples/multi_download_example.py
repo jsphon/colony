@@ -12,7 +12,7 @@ from colony.utils.timer import Timer
 def download_data(seed, n=10000):
     """Dummy Downloading Function"""
     random.seed(seed)
-    time.sleep(1.0)
+    time.sleep(.1)
     result = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(n))
     print('Downloaded data of len %i for seed %s, data=%s...' % (len(result), seed, result[:10]))
     return seed, result

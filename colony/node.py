@@ -11,6 +11,7 @@ from colony.utils.function_info import FunctionInfo
 class Graph(object):
     def __init__(self):
         self.nodes = []
+        self.process = multiprocessing.current_process()
 
     def add(self, node_class, *args, **kwargs):
         new_node = node_class(*args, **kwargs)
@@ -103,6 +104,61 @@ class BatchArgInputPort(ArgInputPort):
             yield payload[i:i + self.batch_size]
 
 
+class NodeWorker(object):
+
+    def __init__(self, node, target=None):
+        self.node = node
+        self.target = target
+
+    def execute(self, *args, **kwargs):
+        raise NotImplemented()
+
+    def _handle_result(self, result):
+        print('Handling result %s'%str(result))
+        self.node.set_value(result)
+        self.node.output_port.notify(result)
+
+
+class SyncNodeWorker(NodeWorker):
+
+    def execute(self, *args, **kwargs):
+        result = self.target(*args, **kwargs)
+        self._handle_result(result)
+
+
+class AsyncNodeWorker(NodeWorker):
+
+    def __init__(self, node, target, async_class=Thread, num_threads=10):
+        super(AsyncNodeWorker, self).__init__(node, target)
+
+        self.num_threads = num_threads
+        self.async_class = async_class
+        queue_class = _get_queue_class(async_class)
+        self.worker_queue = queue_class()
+        self.result_queue = queue_class()
+        self.worker_threads = [async_class(target=self._worker) for _ in range(self.num_threads)]
+        for thread in self.worker_threads:
+            thread.start()
+
+        self.result_thread = Thread(target=self._result_handler)
+        self.result_thread.start()
+
+    def execute(self, *args, **kwargs):
+        self.worker_queue.put((args, kwargs))
+
+    def _worker(self):
+        while True:
+            args, kwargs = self.worker_queue.get()
+            result = self.target(*args, **kwargs)
+            self.result_queue.put(result)
+
+    def _result_handler(self):
+        while True:
+            result = self.result_queue.get()
+            print('AsyncNodeWorker(%s) result %s' % (self.async_class, result))
+            self._handle_result(result)
+
+
 class Node(object):
     def __init__(self,
                  target_func=None,
@@ -113,9 +169,12 @@ class Node(object):
                  default_reactive_input_values=None,
                  node_args=None,
                  node_kwargs=None,
-                 name=None):
+                 name=None,
+                 node_worker_class=None,
+                 node_worker_class_args=None,
+                 node_worker_class_kwargs=None):
 
-        self._target_func = target_func
+        self.target_func = target_func
         self.target_class = target_class
         self.target_class_args = target_class_args or []
         self.target_class_kwargs = target_class_kwargs or {}
@@ -175,6 +234,14 @@ class Node(object):
                 node_kwarg.output_port.register_observer(self.passive_input_ports[kwarg])
 
         self._value = None
+        self.node_worker = self._build_node_worker(node_worker_class, node_worker_class_args, node_worker_class_kwargs)
+
+    def _build_node_worker(self, node_worker_class, node_worker_class_args, node_worker_class_kwargs):
+        node_worker_class = node_worker_class or SyncNodeWorker
+        args = node_worker_class_args or []
+        kwargs = node_worker_class_kwargs or {}
+        return node_worker_class(self, self.target_func, *args, **kwargs)
+
 
     def __repr__(self):
         class_name = self.__class__.__name__
@@ -202,15 +269,14 @@ class Node(object):
 
     def handle_input(self, data=None, idx=None, kwarg=None):
 
+        if kwarg is not None:
+            self.passive_input_values[kwarg] = data
+            return
+
         if idx is not None:
             self.reactive_input_values[idx] = data
-            result = self._target_func(*self.reactive_input_values, **self.passive_input_values)
-            self.handle_result(result)
-        elif kwarg is not None:
-            self.passive_input_values[kwarg] = data
-        else:
-            result = self._target_func(*self.reactive_input_values, **self.passive_input_values)
-            self.handle_result(result)
+
+        self.node_worker.execute(*self.reactive_input_values, **self.passive_input_values)
 
     def handle_result(self, result):
         self.set_value(result)
@@ -222,7 +288,7 @@ class Node(object):
 
     def initialise_target_instance(self):
         self.target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
-        self._target_func = self.target_instance.execute
+        self.target_func = self.target_instance.execute
 
 
 class PersistentNode(Node):
