@@ -22,10 +22,10 @@ class Graph(object):
         return self.add(Node, *args, **kwargs)
 
     def add_thread_node(self, *args, **kwargs):
-        return self.add(AsyncNode, async_class=Thread, *args, **kwargs)
+        return self.add(ThreadNode, *args, **kwargs)
 
     def add_process_node(self, *args, **kwargs):
-        return self.add(AsyncNode, async_class=Process, *args, **kwargs)
+        return self.add(ProcessNode, *args, **kwargs)
 
     def start(self):
         for node in self.nodes:
@@ -104,11 +104,15 @@ class BatchArgInputPort(ArgInputPort):
             yield payload[i:i + self.batch_size]
 
 
-class NodeWorker(object):
+class Worker(object):
 
-    def __init__(self, node, target=None):
+    def __init__(self, node):
         self.node = node
-        self.target = target
+
+        # Take a copy so that we don't need to access node later
+        self.target_class = node.target_class
+        self.target_class_args = node.target_class_args
+        self.target_class_kwargs = node.target_class_kwargs
 
     def execute(self, *args, **kwargs):
         raise NotImplemented()
@@ -118,25 +122,51 @@ class NodeWorker(object):
         self.node.set_value(result)
         self.node.output_port.notify(result)
 
+    def start(self):
+        raise NotImplemented()
 
-class SyncNodeWorker(NodeWorker):
+    def _get_target_func(self):
+        if self.node.target_func:
+            return self.node.target_func
+        else:
+            target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
+            return target_instance.execute
+
+
+class SyncWorker(Worker):
+
+    def __init__(self, *args, **kwargs):
+        super(SyncWorker, self).__init__(*args, **kwargs)
+        self.target = None
 
     def execute(self, *args, **kwargs):
         result = self.target(*args, **kwargs)
         self._handle_result(result)
 
+    def start(self):
+        self.target = self._get_target_func()
 
-class AsyncNodeWorker(NodeWorker):
 
-    def __init__(self, node, target, async_class=Thread, num_threads=10):
-        super(AsyncNodeWorker, self).__init__(node, target)
+class AsyncWorker(Worker):
+
+    def __init__(self, node, async_class=Thread, num_threads=10):
+        super(AsyncWorker, self).__init__(node)
 
         self.num_threads = num_threads
         self.async_class = async_class
-        queue_class = _get_queue_class(async_class)
+
+        self.queue_class = None
+        self.worker_queue = None
+        self.result_queue = None
+        self.worker_threads = None
+        self.result_thread = None
+
+    def start(self):
+
+        queue_class = _get_queue_class(self.async_class)
         self.worker_queue = queue_class()
         self.result_queue = queue_class()
-        self.worker_threads = [async_class(target=self._worker) for _ in range(self.num_threads)]
+        self.worker_threads = [self.async_class(target=self._worker) for _ in range(self.num_threads)]
         for thread in self.worker_threads:
             thread.start()
 
@@ -147,9 +177,10 @@ class AsyncNodeWorker(NodeWorker):
         self.worker_queue.put((args, kwargs))
 
     def _worker(self):
+        target = self._get_target_func()
         while True:
             args, kwargs = self.worker_queue.get()
-            result = self.target(*args, **kwargs)
+            result = target(*args, **kwargs)
             self.result_queue.put(result)
 
     def _result_handler(self):
@@ -234,14 +265,16 @@ class Node(object):
                 node_kwarg.output_port.register_observer(self.passive_input_ports[kwarg])
 
         self._value = None
-        self.node_worker = self._build_node_worker(node_worker_class, node_worker_class_args, node_worker_class_kwargs)
+        self.worker = self._build_node_worker(node_worker_class, node_worker_class_args, node_worker_class_kwargs)
 
     def _build_node_worker(self, node_worker_class, node_worker_class_args, node_worker_class_kwargs):
-        node_worker_class = node_worker_class or SyncNodeWorker
+        node_worker_class = node_worker_class or SyncWorker
         args = node_worker_class_args or []
         kwargs = node_worker_class_kwargs or {}
-        return node_worker_class(self, self.target_func, *args, **kwargs)
+        return node_worker_class(self, *args, **kwargs)
 
+    def new_target_class_instance(self):
+        return self.target_class(*self.target_class_args, **self.target_class_kwargs)
 
     def __repr__(self):
         class_name = self.__class__.__name__
@@ -276,15 +309,14 @@ class Node(object):
         if idx is not None:
             self.reactive_input_values[idx] = data
 
-        self.node_worker.execute(*self.reactive_input_values, **self.passive_input_values)
+        self.worker.execute(*self.reactive_input_values, **self.passive_input_values)
 
     def handle_result(self, result):
         self.set_value(result)
         self.output_port.notify(result)
 
     def start(self):
-        if self.target_class:
-            self.initialise_target_instance()
+        self.worker.start()
 
     def initialise_target_instance(self):
         self.target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
@@ -335,57 +367,82 @@ class DictionaryNode(PersistentNode):
             raise ValueError('action %s not recognised' % action)
 
 
-class AsyncNode(Node):
-    def __init__(self,
-                 target_func=None,
-                 num_threads=10,
-                 async_class=Thread,
-                 node_args=None,
-                 node_kwargs=None,
-                 name=None,
-                 reactive_input_ports=None,
-                 default_reactive_input_values=None,
-                 ):
-        super(AsyncNode, self).__init__(target_func=target_func,
-                                        node_args=node_args,
-                                        node_kwargs=node_kwargs,
-                                        name=name,
-                                        reactive_input_ports=reactive_input_ports,
-                                        default_reactive_input_values=default_reactive_input_values)
+class ProcessNode(Node):
 
-        self.async_class = async_class
-        self.queue_class = _get_queue_class(async_class)
+    def __init__(self, target_func=None, num_threads=10, *args, **kwargs):
+        super(ProcessNode, self).__init__(
+            target_func=target_func,
+            node_worker_class = AsyncWorker,
+            node_worker_class_args = (Process,),
+            node_worker_class_kwargs={'num_threads':num_threads},
+            *args,
+            **kwargs
+        )
 
-        self.num_threads = num_threads
-        self.worker_queue = self.queue_class()
 
-        self.worker_threads = []
+class ThreadNode(Node):
+    def __init__(self, target_func=None, num_threads=10, *args, **kwargs):
+        super(ThreadNode, self).__init__(
+            target_func=target_func,
+            node_worker_class=AsyncWorker,
+            node_worker_class_args=(Thread,),
+            node_worker_class_kwargs={'num_threads': num_threads},
+            *args,
+            **kwargs
+        )
 
-    def start(self):
-        self.worker_threads = [self.async_class(target=self.worker) for _ in range(self.num_threads)]
-        for thread in self.worker_threads:
-            thread.start()
-
-    def stop(self):
-        for _ in self.worker_threads:
-            self.worker_queue.put(PoisonPill())
-        self.join()
-
-    def join(self):
-        for thread in self.worker_threads:
-            thread.join()
-
-    def handle_input(self, data=None, idx=None, kwarg=None):
-        self.worker_queue.put((data, idx, kwarg))
-
-    def worker(self):
-        while True:
-            payload = self.worker_queue.get()
-            if isinstance(payload, PoisonPill):
-                return
-            else:
-                data, idx, kwarg = payload
-                super(AsyncNode, self).handle_input(data, idx, kwarg)
+#
+# class AsyncNode(Node):
+#     def __init__(self,
+#                  target_func=None,
+#                  num_threads=10,
+#                  async_class=Thread,
+#                  node_args=None,
+#                  node_kwargs=None,
+#                  name=None,
+#                  reactive_input_ports=None,
+#                  default_reactive_input_values=None,
+#                  ):
+#         super(AsyncNode, self).__init__(target_func=target_func,
+#                                         node_args=node_args,
+#                                         node_kwargs=node_kwargs,
+#                                         name=name,
+#                                         reactive_input_ports=reactive_input_ports,
+#                                         default_reactive_input_values=default_reactive_input_values)
+#
+#         self.async_class = async_class
+#         self.queue_class = _get_queue_class(async_class)
+#
+#         self.num_threads = num_threads
+#         self.worker_queue = self.queue_class()
+#
+#         self.worker_threads = []
+#
+#     def start(self):
+#         self.worker_threads = [self.async_class(target=self.worker) for _ in range(self.num_threads)]
+#         for thread in self.worker_threads:
+#             thread.start()
+#
+#     def stop(self):
+#         for _ in self.worker_threads:
+#             self.worker_queue.put(PoisonPill())
+#         self.join()
+#
+#     def join(self):
+#         for thread in self.worker_threads:
+#             thread.join()
+#
+#     def handle_input(self, data=None, idx=None, kwarg=None):
+#         self.worker_queue.put((data, idx, kwarg))
+#
+#     def worker(self):
+#         while True:
+#             payload = self.worker_queue.get()
+#             if isinstance(payload, PoisonPill):
+#                 return
+#             else:
+#                 data, idx, kwarg = payload
+#                 super(AsyncNode, self).handle_input(data, idx, kwarg)
 
 
 def _get_queue_class(async_class):

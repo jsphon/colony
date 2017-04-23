@@ -1,4 +1,4 @@
-from colony.node import Graph, Node, MappingArgInputPort
+from colony.node import Node, MappingArgInputPort
 from colony.observer import RememberingObserver
 
 
@@ -8,11 +8,10 @@ def target(x):
 
 if __name__ == '__main__':
     obs = RememberingObserver()
-    col = Graph()
 
-    map_node = col.add(Node,
-                       target_func=target,
-                       reactive_input_ports=MappingArgInputPort())
+    map_node = Node(target_func=target,
+                    reactive_input_ports=MappingArgInputPort())
+    map_node.start()
     map_node.output_port.register_observer(obs)
 
     map_node.notify([1, 2, 3])

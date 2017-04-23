@@ -10,6 +10,7 @@ def get_data(seed):
 if __name__ == '__main__':
 
     persistent_node = PersistentNode(target_func=get_data, name='example')
+    persistent_node.start()
 
     print('Persistent node value initialised at %s' % persistent_node.get_value())
 

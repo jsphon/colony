@@ -1,6 +1,7 @@
-from colony.node import Graph, Node, AsyncNodeWorker
+from colony.node import ProcessNode
 from colony.observer import RememberingObserver
 import time
+
 
 def _x_squared(x):
     return x * x
@@ -9,11 +10,9 @@ def _x_squared(x):
 if __name__ == '__main__':
 
     obs = RememberingObserver()
-    col = Graph()
 
-    node = col.add(Node,
-                   node_worker_class=AsyncNodeWorker,
-                   target_func=_x_squared,)
+    node = ProcessNode(target_func=_x_squared)
+    node.start()
     node.output_port.register_observer(obs)
 
     # Long way to notify an input port

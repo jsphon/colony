@@ -4,16 +4,16 @@ from subprocess import call
 
 import pygraphviz as pgv
 
-from colony.node import AsyncNode
+from colony.node import AsyncWorker
 
 
 def display_colony_graph(g, layout='dot'):
     A = pgv.AGraph(directed=True)
 
     for n in g.nodes:
-        src = n._target_func.__name__
+        src = n.target_func.__name__
 
-        if isinstance(n, AsyncNode):
+        if isinstance(n.worker, AsyncWorker):
             shape = 'doublecircle'
             fillcolor = 'green'
         else:
@@ -30,11 +30,11 @@ def display_colony_graph(g, layout='dot'):
             else:
                 print('e not recognised')
 
-            if isinstance(e.node, AsyncNode):
+            if isinstance(e.node, AsyncWorker):
                 style = 'dashed'
             else:
                 style = 'solid'
-            tgt = e.node._target_func.__name__
+            tgt = e.node.target_func.__name__
             A.add_edge(src, tgt, color=color, style=style)
 
     display_graph(A, layout=layout)

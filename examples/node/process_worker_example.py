@@ -1,5 +1,8 @@
-from colony.node import Graph, Node
+from colony.node import Graph, Node, AsyncWorker
 from colony.observer import RememberingObserver
+import time
+from multiprocessing import Process
+from threading import Thread
 
 
 def _x_squared(x):
@@ -12,8 +15,11 @@ if __name__ == '__main__':
     col = Graph()
 
     node = col.add(Node,
-                   target_func=_x_squared,)
+                   node_worker_class=AsyncWorker,
+                   node_worker_class_args = (Process,),
+                   target_func=_x_squared, )
     node.output_port.register_observer(obs)
+    node.start()
 
     # Long way to notify an input port
     node.reactive_input_ports[0].notify(1)
@@ -28,4 +34,7 @@ if __name__ == '__main__':
     node.notify(5)
     node.notify(6)
 
+    time.sleep(0.1)
     print(obs.calls)
+
+    print('Node value is %s'%node.get_value())

@@ -7,12 +7,14 @@ import os
 import tempfile
 
 name = os.path.basename(tempfile.NamedTemporaryFile().name)
-print('name is %s')
+print('name is %s'%name)
+
 
 def pass_through1(x):
     n = multiprocessing.current_process().name
     print('pass_through1 %s Passing %s through' % (n, str(x)))
     return x
+
 
 def pass_through2(x):
     n = multiprocessing.current_process().name
@@ -23,8 +25,8 @@ def pass_through2(x):
 if __name__ == '__main__':
     graph = Graph()
 
-    process_node1 = graph.add_process_node(pass_through1)
-    process_node2 = graph.add_process_node(pass_through2)
+    process_node1 = graph.add_process_node(target_func=pass_through1)
+    process_node2 = graph.add_process_node(target_func=pass_through2)
 
     persistent_node = graph.add(DictionaryNode, name=name)
     persistent_node.set_value({})
@@ -45,7 +47,7 @@ if __name__ == '__main__':
     recovered_node = DictionaryNode(name=name)
     print('Recovered Node has value at %s' % recovered_node.get_value())
 
-    #display_colony_graph(graph)
+    display_colony_graph(graph)
 
     #
     # def test():

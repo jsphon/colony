@@ -1,4 +1,4 @@
-from colony.node import Graph, Node
+from colony.node import Node
 from colony.observer import RememberingObserver
 
 
@@ -13,10 +13,12 @@ def x_plus_a(x, a=0):
 if __name__ == '__main__':
 
     obs = RememberingObserver()
-    col = Graph()
 
-    node1 = col.add(Node, target_func=x_squared)
-    node2 = col.add(Node, target_func=x_plus_a, node_kwargs={'a':node1})
+    node1 = Node(target_func=x_squared)
+    node2 = Node(target_func=x_plus_a, node_kwargs={'a':node1})
+
+    node1.start()
+    node2.start()
 
     node2.output_port.register_observer(obs)
 

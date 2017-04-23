@@ -1,4 +1,4 @@
-from colony.node import Graph, Node
+from colony.node import Node
 from colony.observer import RememberingObserver
 
 
@@ -9,9 +9,9 @@ def _pow(x, a=1):
 if __name__ == '__main__':
 
     obs = RememberingObserver()
-    col = Graph()
 
-    node = col.add(Node, target_func=_pow)
+    node = Node(target_func=_pow)
+    node.start()
 
     node.output_port.register_observer(obs)
 
