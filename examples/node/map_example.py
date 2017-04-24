@@ -17,4 +17,8 @@ if __name__ == '__main__':
     map_node.notify([1, 2, 3])
     map_node.notify([3, 4, 5])
 
+    print('obs calls are')
     print(obs.calls)
+
+    expected = set([2, 4, 6, 6, 8, 10])
+    assert expected == obs.call_set

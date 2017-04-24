@@ -105,7 +105,6 @@ class BatchArgInputPort(ArgInputPort):
 
 
 class Worker(object):
-
     def __init__(self, node):
         self.node = node
 
@@ -118,7 +117,6 @@ class Worker(object):
         raise NotImplemented()
 
     def _handle_result(self, result):
-        print('Handling result %s'%str(result))
         self.node.set_value(result)
         self.node.output_port.notify(result)
 
@@ -134,7 +132,6 @@ class Worker(object):
 
 
 class SyncWorker(Worker):
-
     def __init__(self, *args, **kwargs):
         super(SyncWorker, self).__init__(*args, **kwargs)
         self.target = None
@@ -148,7 +145,6 @@ class SyncWorker(Worker):
 
 
 class AsyncWorker(Worker):
-
     def __init__(self, node, async_class=Thread, num_threads=10):
         super(AsyncWorker, self).__init__(node)
 
@@ -173,21 +169,51 @@ class AsyncWorker(Worker):
         self.result_thread = Thread(target=self._result_handler)
         self.result_thread.start()
 
+    def stop(self):
+        # Code smell, as this assumes each worker thread only picks up one
+
+        # It's important to let the worker threads stop first,
+        # so that they have put their results onto result_queue
+        # before this method adds the poison pill to it
+        for _ in self.worker_threads:
+            self.worker_queue.put(PoisonPill())
+
+        for thread in self.worker_threads:
+            thread.join()
+
+        self.result_queue.put(PoisonPill())
+        self.result_thread.join()
+
+    def join(self):
+        self.worker_queue.join()
+        self.result_queue.join()
+
     def execute(self, *args, **kwargs):
         self.worker_queue.put((args, kwargs))
 
     def _worker(self):
         target = self._get_target_func()
         while True:
-            args, kwargs = self.worker_queue.get()
-            result = target(*args, **kwargs)
-            self.result_queue.put(result)
+            payload = self.worker_queue.get()
+            if isinstance(payload, PoisonPill):
+                self.worker_queue.task_done()
+                return
+            else:
+                args, kwargs = payload
+                result = target(*args, **kwargs)
+                self.result_queue.put(result)
+                self.worker_queue.task_done()
 
     def _result_handler(self):
         while True:
-            result = self.result_queue.get()
-            print('AsyncNodeWorker(%s) result %s' % (self.async_class, result))
-            self._handle_result(result)
+            payload = self.result_queue.get()
+            if isinstance(payload, PoisonPill):
+                self.result_queue.task_done()
+                return
+            else:
+                result = payload
+                self._handle_result(result)
+                self.result_queue.task_done()
 
 
 class Node(object):
@@ -367,14 +393,25 @@ class DictionaryNode(PersistentNode):
             raise ValueError('action %s not recognised' % action)
 
 
-class ProcessNode(Node):
+class AsyncNode(Node):
+    def __init__(self, target_func=None, async_class=Thread, num_threads=10, *args, **kwargs):
+        super(AsyncNode, self).__init__(
+            target_func=target_func,
+            node_worker_class=AsyncWorker,
+            node_worker_class_args=(async_class,),
+            node_worker_class_kwargs={'num_threads': num_threads},
+            *args,
+            **kwargs
+        )
 
+
+class ProcessNode(Node):
     def __init__(self, target_func=None, num_threads=10, *args, **kwargs):
         super(ProcessNode, self).__init__(
             target_func=target_func,
-            node_worker_class = AsyncWorker,
-            node_worker_class_args = (Process,),
-            node_worker_class_kwargs={'num_threads':num_threads},
+            node_worker_class=AsyncWorker,
+            node_worker_class_args=(Process,),
+            node_worker_class_kwargs={'num_threads': num_threads},
             *args,
             **kwargs
         )
@@ -391,74 +428,20 @@ class ThreadNode(Node):
             **kwargs
         )
 
-#
-# class AsyncNode(Node):
-#     def __init__(self,
-#                  target_func=None,
-#                  num_threads=10,
-#                  async_class=Thread,
-#                  node_args=None,
-#                  node_kwargs=None,
-#                  name=None,
-#                  reactive_input_ports=None,
-#                  default_reactive_input_values=None,
-#                  ):
-#         super(AsyncNode, self).__init__(target_func=target_func,
-#                                         node_args=node_args,
-#                                         node_kwargs=node_kwargs,
-#                                         name=name,
-#                                         reactive_input_ports=reactive_input_ports,
-#                                         default_reactive_input_values=default_reactive_input_values)
-#
-#         self.async_class = async_class
-#         self.queue_class = _get_queue_class(async_class)
-#
-#         self.num_threads = num_threads
-#         self.worker_queue = self.queue_class()
-#
-#         self.worker_threads = []
-#
-#     def start(self):
-#         self.worker_threads = [self.async_class(target=self.worker) for _ in range(self.num_threads)]
-#         for thread in self.worker_threads:
-#             thread.start()
-#
-#     def stop(self):
-#         for _ in self.worker_threads:
-#             self.worker_queue.put(PoisonPill())
-#         self.join()
-#
-#     def join(self):
-#         for thread in self.worker_threads:
-#             thread.join()
-#
-#     def handle_input(self, data=None, idx=None, kwarg=None):
-#         self.worker_queue.put((data, idx, kwarg))
-#
-#     def worker(self):
-#         while True:
-#             payload = self.worker_queue.get()
-#             if isinstance(payload, PoisonPill):
-#                 return
-#             else:
-#                 data, idx, kwarg = payload
-#                 super(AsyncNode, self).handle_input(data, idx, kwarg)
-
 
 def _get_queue_class(async_class):
     if async_class == Thread:
         return Queue
     elif async_class == multiprocessing.Process:
-        return multiprocessing.Queue
+        return multiprocessing.JoinableQueue
 
 
 class TargetClass(object):
-
     def execute(self, *args, **kwargs):
         pass
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     class ExampleTargetClass(TargetClass):
         def __init__(self, c):
             print('setting data')
