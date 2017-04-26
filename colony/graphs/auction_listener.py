@@ -6,10 +6,26 @@ from colony.node import Graph, DictionaryNode
 
 class AuctionListener(Graph):
 
-    def __init__(self, get_auctions, get_prices, save_prices):
+    def __init__(self, get_auctions_args=None,
+                 get_prices_args=None,
+                 save_prices_args=None,
+                 save_prices_kwargs=None,
+                 get_auctions_kwargs=None,
+                 get_prices_kwargs=None,
+                 ):
         super(AuctionListener, self).__init__()
 
-        self.get_auctions_node = self.add_node(get_auctions)
+        if not isinstance(get_auctions_args, (list, tuple)):
+            get_auctions_args = (get_auctions_args, ) if get_auctions_args else tuple()
+
+        if not isinstance(get_prices_args, (list, tuple)):
+            get_prices_args = (get_prices_args, ) if get_prices_args else tuple()
+
+        if not isinstance(save_prices_args, (list, tuple)):
+            save_prices_args = (save_prices_args, ) if save_prices_args else tuple()
+
+        get_auctions_kwargs = get_auctions_kwargs or {}
+        self.get_auctions_node = self.add_node(*get_auctions_args, **get_auctions_kwargs)
         self.update_node = self.add_node(update,
                                          node_args=(self.get_auctions_node,))
 
@@ -17,14 +33,15 @@ class AuctionListener(Graph):
         self.active_auctions_node = self.add(DictionaryNode,
                                              node_args=(self.update_node,),
                                              name=name)
+        get_prices_kwargs = get_prices_kwargs or {}
+        get_prices_kwargs['node_kwargs'] = {'auction_catalogue': self.active_auctions_node}
+        self.get_prices_node = self.add_thread_node(*get_prices_args, **get_prices_kwargs)
 
-        self.get_prices_node = self.add_thread_node(get_prices,
-                                             node_kwargs={'auction_catalogue': self.active_auctions_node})
+        save_prices_kwargs = save_prices_kwargs or {}
+        save_prices_kwargs['node_args'] = (self.get_prices_node,)
+        save_prices_kwargs['node_kwargs'] = {'auction_catalogue': self.active_auctions_node}
 
-        self.save_prices_node = self.add_thread_node(save_prices,
-                                              node_args=(self.get_prices_node,),
-                                              node_kwargs={'auction_catalogue': self.active_auctions_node})
-
+        self.save_prices_node = self.add_thread_node(*save_prices_args, **save_prices_kwargs)
         self.close_filter_node = self.add_node(close_filter,
                                                node_args=(self.save_prices_node,))
 

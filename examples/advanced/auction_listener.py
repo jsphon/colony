@@ -8,6 +8,7 @@ AUCTION_PRICES = {'red': {'status': 'OPEN', 'price': 10},
                   'green': {'status': 'OPEN', 'price': 20},
                   'blue': {'status': 'CLOSED', 'price': 30}}
 
+c = 0
 
 def get_auctions(category):
     if category == 'widgets':
@@ -17,9 +18,13 @@ def get_auctions(category):
 
 
 def get_prices(auction_catalogue=None):
+    global c
+    c+=1
     results = {}
+    print('Getting prices for %s'%str(auction_catalogue))
     for auction_id in auction_catalogue:
-        results[auction_id] = AUCTION_PRICES[auction_id]
+        results[auction_id] = AUCTION_PRICES[auction_id].copy()
+        results[auction_id]['id'] = c
     return results
 
 
@@ -40,7 +45,8 @@ if __name__ == '__main__':
     print('active auctions %s' % graph.active_auctions_node.get_value())
 
     # Update the prices
-    graph.get_prices_node.notify()
+    for _ in range(3):
+        graph.get_prices_node.notify()
     # Active auctions node should only have 2 elements
     print('active auctions %s' % graph.active_auctions_node.get_value())
 
