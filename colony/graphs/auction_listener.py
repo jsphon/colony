@@ -33,8 +33,12 @@ class AuctionListener(Graph):
         self.active_auctions_node = self.add(DictionaryNode,
                                              node_args=(self.update_node,),
                                              name=name)
+
+        self.auction_keys_node = self.add_node(to_dict_keys, node_kwargs={'d':self.active_auctions_node})
+
         get_prices_kwargs = get_prices_kwargs or {}
-        get_prices_kwargs['node_kwargs'] = {'auction_catalogue': self.active_auctions_node}
+        #get_prices_kwargs['node_kwargs'] = {'auction_catalogue': self.active_auctions_node}
+        get_prices_kwargs['node_args'] = (self.auction_keys_node, )
         self.get_prices_node = self.add_thread_node(*get_prices_args, **get_prices_kwargs)
 
         save_prices_kwargs = save_prices_kwargs or {}
@@ -51,6 +55,11 @@ class AuctionListener(Graph):
         self.delete_node.output_port.register_observer(self.active_auctions_node.reactive_input_ports[0])
 
 
+def to_dict_keys(d=None):
+    d = d or {}
+    return list(d.keys())
+
+
 def update(data):
     return 'update', data
 
@@ -61,7 +70,8 @@ def delete(data):
 
 def close_filter(prices):
     result = {}
-    for k, v in prices.items():
-        if v['status'] == 'CLOSED':
-            result[k] = v
+    if prices:
+        for k, v in prices.items():
+            if v['status'] == 'CLOSED':
+                result[k] = v
     return result

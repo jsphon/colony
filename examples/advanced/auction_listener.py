@@ -10,6 +10,7 @@ AUCTION_PRICES = {'red': {'status': 'OPEN', 'price': 10},
 
 c = 0
 
+
 def get_auctions(category):
     if category == 'widgets':
         return WIDGET_AUCTIONS
@@ -17,11 +18,11 @@ def get_auctions(category):
         return {'round': {'status': 'OPEN'}}
 
 
-def get_prices(auction_catalogue=None):
+def get_prices(auction_catalogue):
     global c
-    c+=1
+    c += 1
     results = {}
-    print('Getting prices for %s'%str(auction_catalogue))
+    print('Getting prices for %s' % str(auction_catalogue))
     for auction_id in auction_catalogue:
         results[auction_id] = AUCTION_PRICES[auction_id].copy()
         results[auction_id]['id'] = c
@@ -45,9 +46,10 @@ if __name__ == '__main__':
     print('active auctions %s' % graph.active_auctions_node.get_value())
 
     # Update the prices
-    for _ in range(3):
-        graph.get_prices_node.notify()
-    # Active auctions node should only have 2 elements
+    # for _ in range(3):
+    #     graph.get_prices_node.notify()
+    graph.auction_keys_node.notify()
+    # # Active auctions node should only have 2 elements
     print('active auctions %s' % graph.active_auctions_node.get_value())
 
     from colony.visualiser import display_colony_graph
