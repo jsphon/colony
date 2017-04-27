@@ -1,7 +1,7 @@
 import os
 import tempfile
 
-from colony.node import Graph, DictionaryNode
+from colony.node import Graph, DictionaryNode, BatchArgInputPort
 
 
 class AuctionListener(Graph):
@@ -12,6 +12,7 @@ class AuctionListener(Graph):
                  save_prices_kwargs=None,
                  get_auctions_kwargs=None,
                  get_prices_kwargs=None,
+                 batch_size=5,
                  ):
         super(AuctionListener, self).__init__()
 
@@ -37,8 +38,8 @@ class AuctionListener(Graph):
         self.auction_keys_node = self.add_node(to_dict_keys, node_kwargs={'d':self.active_auctions_node})
 
         get_prices_kwargs = get_prices_kwargs or {}
-        #get_prices_kwargs['node_kwargs'] = {'auction_catalogue': self.active_auctions_node}
         get_prices_kwargs['node_args'] = (self.auction_keys_node, )
+        get_prices_kwargs['reactive_input_ports'] = BatchArgInputPort(batch_size=batch_size)
         self.get_prices_node = self.add_thread_node(*get_prices_args, **get_prices_kwargs)
 
         save_prices_kwargs = save_prices_kwargs or {}
@@ -53,6 +54,12 @@ class AuctionListener(Graph):
                                          node_args=(self.close_filter_node,))
 
         self.delete_node.output_port.register_observer(self.active_auctions_node.reactive_input_ports[0])
+
+    def get_latest_auctions(self):
+        self.get_auctions_node.notify()
+
+    def get_latest_prices(self):
+        self.auction_keys_node.notify()
 
 
 def to_dict_keys(d=None):

@@ -11,11 +11,8 @@ AUCTION_PRICES = {'red': {'status': 'OPEN', 'price': 10},
 c = 0
 
 
-def get_auctions(category):
-    if category == 'widgets':
-        return WIDGET_AUCTIONS
-    elif category == 'dongles':
-        return {'round': {'status': 'OPEN'}}
+def get_auctions():
+    return WIDGET_AUCTIONS
 
 
 def get_prices(auction_catalogue):
@@ -38,18 +35,16 @@ def save_prices(prices, auction_catalogue=None):
 
 
 if __name__ == '__main__':
-    graph = AuctionListener(get_auctions, get_prices, save_prices)
+    graph = AuctionListener(get_auctions, get_prices, save_prices, batch_size=1)
     graph.start()
 
     # Update the auctions
-    graph.get_auctions_node.notify('widgets')
+    graph.get_latest_auctions()
     print('active auctions %s' % graph.active_auctions_node.get_value())
 
     # Update the prices
-    # for _ in range(3):
-    #     graph.get_prices_node.notify()
-    graph.auction_keys_node.notify()
-    # # Active auctions node should only have 2 elements
+    graph.get_latest_prices()
+
     print('active auctions %s' % graph.active_auctions_node.get_value())
 
     from colony.visualiser import display_colony_graph
