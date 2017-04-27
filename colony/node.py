@@ -272,7 +272,13 @@ class Node(object):
             if isinstance(node_args, Node):
                 node_args = [node_args]
             for i, node_arg in enumerate(node_args):
-                node_arg.output_port.register_observer(self.reactive_input_ports[i])
+                try:
+                    node_arg.output_port.register_observer(self.reactive_input_ports[i])
+                except Exception:
+                    print('Failed to register on reactive input port %i'%i)
+                    print('target_func: %s' % str(target_func))
+                    print('target_class: %s' % str(target_class))
+                    raise
 
         self.output_port = OutputPort()
         self.output_port.connect_to(self)
@@ -288,7 +294,12 @@ class Node(object):
 
         if node_kwargs:
             for kwarg, node_kwarg in node_kwargs.items():
-                node_kwarg.output_port.register_observer(self.passive_input_ports[kwarg])
+                try:
+                    node_kwarg.output_port.register_observer(self.passive_input_ports[kwarg])
+                except KeyError:
+                    print('Is %s in %s'%(kwarg, self.passive_input_ports.keys()))
+                    print('Is it really a arg?')
+                    raise
 
         self._value = None
         self.worker = self._build_node_worker(node_worker_class, node_worker_class_args, node_worker_class_kwargs)
