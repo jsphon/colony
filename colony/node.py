@@ -375,7 +375,8 @@ class PersistentNode(Node):
 
     def __init__(self, folder=None, *args, **kwargs):
         super(PersistentNode, self).__init__(*args, **kwargs)
-        self.persistent_value = PersistentVariable(self.name, folder=folder)
+        variable_name = self.name or get_temporary_filename()
+        self.persistent_value = PersistentVariable(variable_name, folder=folder)
         self.persistent_value.refresh()
 
     def get_value(self):
@@ -460,6 +461,12 @@ def _get_queue_class(async_class):
 class TargetClass(object):
     def execute(self, *args, **kwargs):
         pass
+
+
+def get_temporary_filename():
+    import os
+    import tempfile
+    return os.path.basename(tempfile.NamedTemporaryFile().name)
 
 
 if __name__ == '__main__':
