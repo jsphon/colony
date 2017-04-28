@@ -12,6 +12,7 @@ class Graph(object):
     def __init__(self):
         self.nodes = []
         self.process = multiprocessing.current_process()
+        self.is_alive = False
 
     def add(self, node_class, *args, **kwargs):
         new_node = node_class(*args, **kwargs)
@@ -31,11 +32,14 @@ class Graph(object):
         for node in self.nodes:
             if hasattr(node, 'start'):
                 node.start()
+        self.is_alive = True
 
     def stop(self):
+        self.is_alive = False
         for node in self.nodes:
             if hasattr(node, 'stop'):
                 node.stop()
+            node.worker.stop()
 
 
 class OutputPort(Observable):
@@ -123,6 +127,9 @@ class Worker(object):
     def start(self):
         raise NotImplemented()
 
+    def stop(self):
+        raise NotImplemented()
+
     def _get_target_func(self):
         if self.node.target_func:
             return self.node.target_func
@@ -142,6 +149,9 @@ class SyncWorker(Worker):
 
     def start(self):
         self.target = self._get_target_func()
+
+    def stop(self):
+        self.target = None
 
 
 class AsyncWorker(Worker):
@@ -275,7 +285,7 @@ class Node(object):
                 try:
                     node_arg.output_port.register_observer(self.reactive_input_ports[i])
                 except Exception:
-                    print('Failed to register on reactive input port %i'%i)
+                    print('Failed to register on reactive input port %i' % i)
                     print('target_func: %s' % str(target_func))
                     print('target_class: %s' % str(target_class))
                     raise
@@ -297,7 +307,7 @@ class Node(object):
                 try:
                     node_kwarg.output_port.register_observer(self.passive_input_ports[kwarg])
                 except KeyError:
-                    print('Is %s in %s'%(kwarg, self.passive_input_ports.keys()))
+                    print('Is %s in %s' % (kwarg, self.passive_input_ports.keys()))
                     print('Is it really a arg?')
                     raise
 
@@ -363,9 +373,9 @@ class Node(object):
 class PersistentNode(Node):
     """ This Node's value will persist between different instance lifetimes """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, folder=None, *args, **kwargs):
         super(PersistentNode, self).__init__(*args, **kwargs)
-        self.persistent_value = PersistentVariable(self.name)
+        self.persistent_value = PersistentVariable(self.name, folder=folder)
         self.persistent_value.refresh()
 
     def get_value(self):

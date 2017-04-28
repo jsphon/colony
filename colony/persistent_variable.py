@@ -1,15 +1,15 @@
 import json
 import os
+import tempfile
 
-DEFAULT_PATH = '/tmp/'
+DEFAULT_FOLDER = tempfile.gettempdir()
 
 
 class PersistentVariable(object):
-
-    def __init__(self, name, folder=DEFAULT_PATH):
+    def __init__(self, name, folder):
         self.name = name
-        self.folder = folder
-        self.path = os.path.join(folder, name)
+        self.folder = folder or DEFAULT_FOLDER
+        self.path = os.path.join(self.folder, name)
         self.value = None
         self.refresh()
 
@@ -27,8 +27,7 @@ class PersistentVariable(object):
         return self.value
 
 
-if __name__=='__main__':
-
+if __name__ == '__main__':
     p = PersistentVariable('hello')
 
     p.set_value('hello')

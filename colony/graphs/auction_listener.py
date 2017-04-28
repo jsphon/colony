@@ -13,6 +13,8 @@ class AuctionListener(Graph):
                  get_auctions_kwargs=None,
                  get_prices_kwargs=None,
                  batch_size=5,
+                 filename=None,
+                 folder=None
                  ):
         super(AuctionListener, self).__init__()
 
@@ -30,10 +32,10 @@ class AuctionListener(Graph):
         self.update_node = self.add_node(update,
                                          node_args=(self.get_auctions_node,))
 
-        name = os.path.basename(tempfile.NamedTemporaryFile().name)
         self.active_auctions_node = self.add(DictionaryNode,
                                              node_args=(self.update_node,),
-                                             name=name)
+                                             name=filename,
+                                             folder=folder)
 
         self.auction_keys_node = self.add_node(to_dict_keys, node_kwargs={'d':self.active_auctions_node})
 
