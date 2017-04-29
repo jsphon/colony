@@ -12,6 +12,7 @@ class AuctionListener(Graph):
                  save_prices_kwargs=None,
                  get_auctions_kwargs=None,
                  get_prices_kwargs=None,
+                 close_filter=None,
                  batch_size=5,
                  filename=None,
                  folder=None
@@ -49,6 +50,7 @@ class AuctionListener(Graph):
         save_prices_kwargs['node_kwargs'] = {'auction_catalogue': self.active_auctions_node}
 
         self.save_prices_node = self.add_thread_node(*save_prices_args, **save_prices_kwargs)
+        close_filter = close_filter or default_close_filter
         self.close_filter_node = self.add_node(close_filter,
                                                node_args=(self.save_prices_node,))
 
@@ -58,10 +60,16 @@ class AuctionListener(Graph):
         self.delete_node.output_port.register_observer(self.active_auctions_node.reactive_input_ports[0])
 
     def get_latest_auctions(self):
-        self.get_auctions_node.notify()
+        if self.is_alive:
+            self.get_auctions_node.notify()
+        else:
+            print('Cannot get auctions, is_alive=%s'%self.is_alive)
 
     def get_latest_prices(self):
-        self.auction_keys_node.notify()
+        if self.is_alive:
+            self.auction_keys_node.notify()
+        else:
+            print('Cannot get prices, is_alive=%s' % self.is_alive)
 
 
 def to_dict_keys(d=None):
@@ -77,10 +85,17 @@ def delete(data):
     return 'delete', tuple(data.keys())
 
 
-def close_filter(prices):
+def default_close_filter(prices):
     result = {}
+    print('close filter received %s prices'%len(prices))
     if prices:
-        for k, v in prices.items():
-            if v['status'] == 'CLOSED':
-                result[k] = v
+        if isinstance(prices, dict):
+            for k, v in prices.items():
+                if v['status'] == 'CLOSED':
+                    result[k] = v
+        elif isinstance(prices, (list, tuple)):
+            for v in prices:
+                if v['status'] == 'CLOSED':
+                    k = v['marketId']
+                    result[k] = v
     return result

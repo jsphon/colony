@@ -35,7 +35,7 @@ def save_prices(prices, auction_catalogue=None):
 
 
 if __name__ == '__main__':
-    graph = AuctionListener(get_auctions, get_prices, save_prices, batch_size=1)
+    graph = AuctionListener(get_auctions, get_prices, save_prices, batch_size=1)#, folder)
     graph.start()
 
     # Update the auctions
