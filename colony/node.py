@@ -203,16 +203,23 @@ class AsyncWorker(Worker):
 
     def _worker(self):
         target = self._get_target_func()
-        while True:
-            payload = self.worker_queue.get()
-            if isinstance(payload, PoisonPill):
+        keep_running = True
+        while keep_running:
+            try:
+                payload = self.worker_queue.get()
+                keep_running = self._do_work(target, payload)
                 self.worker_queue.task_done()
-                return
-            else:
-                args, kwargs = payload
-                result = target(*args, **kwargs)
-                self.result_queue.put(result)
-                self.worker_queue.task_done()
+            except Exception as e:
+                print('AsyncWorker failed to do work: %s' % str(e))
+
+    def _do_work(self, target, payload):
+        if isinstance(payload, PoisonPill):
+            return False
+        else:
+            args, kwargs = payload
+            result = target(*args, **kwargs)
+            self.result_queue.put(result)
+            return True
 
     def _result_handler(self):
         while True:
@@ -359,7 +366,7 @@ class Node(object):
         try:
             self.worker.execute(*self.reactive_input_values, **self.passive_input_values)
         except Exception as e:
-            print('Failed to execute worker: %s'%str(e))
+            print('Failed to execute worker: %s' % str(e))
 
     def handle_result(self, result):
         self.set_value(result)
