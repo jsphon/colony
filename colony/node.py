@@ -356,7 +356,10 @@ class Node(object):
         if idx is not None:
             self.reactive_input_values[idx] = data
 
-        self.worker.execute(*self.reactive_input_values, **self.passive_input_values)
+        try:
+            self.worker.execute(*self.reactive_input_values, **self.passive_input_values)
+        except Exception as e:
+            print('Failed to execute worker: %s'%str(e))
 
     def handle_result(self, result):
         self.set_value(result)
