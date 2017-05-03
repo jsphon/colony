@@ -2,20 +2,24 @@ import multiprocessing
 from multiprocessing import Process
 from queue import Queue
 from threading import Thread
+import traceback
 
 from colony.observer import Observer, Observable
 from colony.persistent_variable import PersistentVariable
 from colony.utils.function_info import FunctionInfo
-
+from colony.utils.logging import get_logger
 
 class Graph(object):
-    def __init__(self):
+
+    def __init__(self, logger=None):
+        self.logger = logger or get_logger()
         self.nodes = []
         self.process = multiprocessing.current_process()
         self.is_alive = False
 
     def add(self, node_class, *args, **kwargs):
         new_node = node_class(*args, **kwargs)
+        new_node.logger = self.logger
         self.nodes.append(new_node)
         return new_node
 
@@ -227,6 +231,7 @@ class AsyncWorker(Worker):
 
 
 class Node(object):
+
     def __init__(self,
                  target_func=None,
                  target_class=None,
@@ -239,13 +244,15 @@ class Node(object):
                  name=None,
                  node_worker_class=None,
                  node_worker_class_args=None,
-                 node_worker_class_kwargs=None):
+                 node_worker_class_kwargs=None,
+                 logger=None):
 
         self.target_func = target_func
         self.target_class = target_class
         self.target_class_args = target_class_args or []
         self.target_class_kwargs = target_class_kwargs or {}
         self.target_instance = None
+        self.logger = logger or get_logger()
 
         if target_func and target_class is None:
             target_info = FunctionInfo(target_func)
@@ -285,9 +292,9 @@ class Node(object):
                 try:
                     node_arg.output_port.register_observer(self.reactive_input_ports[i])
                 except Exception:
-                    print('Failed to register on reactive input port %i' % i)
-                    print('target_func: %s' % str(target_func))
-                    print('target_class: %s' % str(target_class))
+                    self.logger.error('Failed to register on reactive input port %i', i)
+                    self.logger.error('target_func: %s', str(target_func))
+                    self.logger.error('target_class: %s', str(target_class))
                     raise
 
         self.output_port = OutputPort()
@@ -307,8 +314,8 @@ class Node(object):
                 try:
                     node_kwarg.output_port.register_observer(self.passive_input_ports[kwarg])
                 except KeyError:
-                    print('Is %s in %s' % (kwarg, self.passive_input_ports.keys()))
-                    print('Is it really a arg?')
+                    self.logger.error('Is %s in %s' % (kwarg, self.passive_input_ports.keys()))
+                    self.logger.error('Is it really a arg?')
                     raise
 
         self._value = None
@@ -359,7 +366,8 @@ class Node(object):
         try:
             self.worker.execute(*self.reactive_input_values, **self.passive_input_values)
         except Exception as e:
-            print('Failed to execute worker: %s'%str(e))
+            self.logger.error('Failed to execute worker: %s', str(e))
+            self.logger.error(traceback.format_exc())
 
     def handle_result(self, result):
         self.set_value(result)
