@@ -1,6 +1,3 @@
-import os
-import tempfile
-
 from colony.node import Graph, DictionaryNode, BatchArgInputPort
 
 
@@ -87,15 +84,10 @@ def delete(data):
 
 def default_close_filter(prices):
     result = {}
-    print('close filter received %s prices'%len(prices))
     if prices:
-        if isinstance(prices, dict):
-            for k, v in prices.items():
-                if v['status'] == 'CLOSED':
-                    result[k] = v
-        elif isinstance(prices, (list, tuple)):
-            for v in prices:
-                if v['status'] == 'CLOSED':
-                    k = v['marketId']
-                    result[k] = v
+        print('close filter received %s prices' % len(prices))
+        for k, v in prices.items():
+            if v['status'] == 'CLOSED':
+                result[k] = v
+
     return result
