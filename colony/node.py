@@ -9,8 +9,8 @@ from colony.persistent_variable import PersistentVariable
 from colony.utils.function_info import FunctionInfo
 from colony.utils.logging import get_logger
 
-class Graph(object):
 
+class Graph(object):
     def __init__(self, logger=None):
         self.logger = logger or get_logger()
         self.nodes = []
@@ -231,7 +231,6 @@ class AsyncWorker(Worker):
 
 
 class Node(object):
-
     def __init__(self,
                  target_func=None,
                  target_class=None,
