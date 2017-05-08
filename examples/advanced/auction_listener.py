@@ -26,7 +26,7 @@ def get_prices(auction_catalogue):
     return results
 
 
-def save_prices(prices, auction_catalogue=None):
+def save_prices(prices):#, auction_catalogue=None):
     for k, v in prices.items():
         print('Saving prices for %s: %s' % (str(k), str(v)))
 
@@ -34,8 +34,16 @@ def save_prices(prices, auction_catalogue=None):
     return prices
 
 
+def on_close(prices, auction_catalogue=None):
+
+    for k, v in prices.items():
+        print('Archiving prices for %s: %s' % (str(k), str(v)))
+
+    return prices
+
+
 if __name__ == '__main__':
-    graph = AuctionListener(get_auctions, get_prices, save_prices, batch_size=1)#, folder)
+    graph = AuctionListener(get_auctions, get_prices, save_prices, on_close, batch_size=1)#, folder)
     graph.start()
 
     # Update the auctions
@@ -49,4 +57,5 @@ if __name__ == '__main__':
 
     from colony.visualiser import display_colony_graph
 
-    display_colony_graph(graph)
+    display_colony_graph(graph, 'fdp')
+    display_colony_graph(graph, 'dot')
