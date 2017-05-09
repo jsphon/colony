@@ -14,9 +14,11 @@ class AuctionListener(Graph):
                  on_close_kwargs=None,
                  batch_size=5,
                  filename=None,
-                 folder=None
+                 folder=None,
+                 name=None,
+                 logger=None
                  ):
-        super(AuctionListener, self).__init__()
+        super(AuctionListener, self).__init__(name=name, logger=logger)
 
         if not isinstance(get_auctions_args, (list, tuple)):
             get_auctions_args = (get_auctions_args, ) if get_auctions_args else tuple()

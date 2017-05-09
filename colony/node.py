@@ -11,11 +11,13 @@ from colony.utils.logging import get_logger
 
 
 class Graph(object):
-    def __init__(self, logger=None):
+
+    def __init__(self, name=None, logger=None):
         self.logger = logger or get_logger()
         self.nodes = []
         self.process = multiprocessing.current_process()
         self.is_alive = False
+        self.name = name or ''
 
     def add(self, node_class, *args, **kwargs):
         new_node = node_class(*args, **kwargs)
@@ -33,12 +35,14 @@ class Graph(object):
         return self.add(ProcessNode, *args, **kwargs)
 
     def start(self):
+        self.logger.info('Graph "%s" starting', self.name)
         for node in self.nodes:
             if hasattr(node, 'start'):
                 node.start()
         self.is_alive = True
 
     def stop(self):
+        self.logger.info('Graph "%s" received stop signal', self.name)
         self.is_alive = False
         for node in self.nodes:
             if hasattr(node, 'stop'):
