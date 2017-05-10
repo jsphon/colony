@@ -51,7 +51,6 @@ class AuctionListener(Graph):
 
         save_prices_kwargs = save_prices_kwargs or {}
         save_prices_kwargs['node_args'] = (self.get_prices_node,)
-        #save_prices_kwargs['node_kwargs'] = {'auction_catalogue': self.active_auctions_node}
 
         self.save_prices_node = self.add_thread_node(*save_prices_args, **save_prices_kwargs)
         close_filter = close_filter or default_close_filter

@@ -18,14 +18,15 @@ def get_auctions(category):
         return {'round': {'status': 'OPEN'}}
 
 
-def get_prices(auction_catalogue=None):
+def get_prices(auction_catalogue):
     results = {}
+    print('Getting prices')
     for auction_id in auction_catalogue:
         results[auction_id] = AUCTION_PRICES[auction_id]
     return results
 
 
-def save_prices(prices, auction_catalogue=None):
+def save_prices(prices):#, auction_catalogue=None):
     for k, v in prices.items():
         print('Saving prices for %s: %s' % (str(k), str(v)))
 
@@ -33,10 +34,17 @@ def save_prices(prices, auction_catalogue=None):
     return prices
 
 
+def on_close(prices, auction_catalogue=None):
+
+    for k, v in prices.items():
+        print('Archiving prices for %s: %s' % (str(k), str(v)))
+
+    return prices
+
 
 class MyTestCase(unittest.TestCase):
     def test_get_auctions_notify(self):
-        graph = AuctionListener(get_auctions, get_prices, save_prices)
+        graph = AuctionListener(get_auctions, get_prices, save_prices, on_close)
         graph.start()
 
         graph.get_auctions_node.notify('widgets')
@@ -46,15 +54,19 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(WIDGET_AUCTIONS, graph.get_auctions_node.get_value())
 
     def test_get_prices_notify(self):
-        graph = AuctionListener(get_auctions, get_prices, save_prices)
+        graph = AuctionListener(get_auctions, get_prices, save_prices, on_close)
         graph.start()
 
         graph.get_auctions_node.notify('widgets')
         graph.get_prices_node.notify()
+        graph.get_latest_prices()
 
         graph.stop()
 
         self.assertEqual(AUCTION_PRICES, graph.get_prices_node.get_value())
+
+        import time
+        time.sleep(1)
 
         expected = {'red': {'status': 'OPEN'},
                     'green': {'status': 'OPEN'}}

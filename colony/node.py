@@ -26,13 +26,19 @@ class Graph(object):
         return new_node
 
     def add_node(self, *args, **kwargs):
-        return self.add(Node, *args, **kwargs)
+        result = self.add(Node, *args, **kwargs)
+        result.logger = self.logger
+        return result
 
     def add_thread_node(self, *args, **kwargs):
-        return self.add(ThreadNode, *args, **kwargs)
+        result = self.add(ThreadNode, *args, **kwargs)
+        result.logger = self.logger
+        return result
 
     def add_process_node(self, *args, **kwargs):
-        return self.add(ProcessNode, *args, **kwargs)
+        result = self.add(ProcessNode, *args, **kwargs)
+        result.logger = self.logger
+        return result
 
     def start(self):
         self.logger.info('Graph "%s" starting', self.name)
@@ -142,7 +148,8 @@ class Worker(object):
         if self.node.target_func:
             return self.node.target_func
         else:
-            target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
+            target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs.copy())
+            target_instance.logger = self.node.logger
             return target_instance.execute
 
 
@@ -330,9 +337,6 @@ class Node(object):
         kwargs = node_worker_class_kwargs or {}
         return node_worker_class(self, *args, **kwargs)
 
-    def new_target_class_instance(self):
-        return self.target_class(*self.target_class_args, **self.target_class_kwargs)
-
     def __repr__(self):
         class_name = self.__class__.__name__
         if self.name:
@@ -378,10 +382,11 @@ class Node(object):
 
     def start(self):
         self.worker.start()
-
-    def initialise_target_instance(self):
-        self.target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
-        self.target_func = self.target_instance.execute
+    #
+    # def initialise_target_instance(self):
+    #     self.target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
+    #     self.target_instance.logger = self.logger
+    #     self.target_func = self.target_instance.execute
 
 
 class PersistentNode(Node):
