@@ -1,8 +1,8 @@
 import multiprocessing
+import traceback
 from multiprocessing import Process
 from queue import Queue
 from threading import Thread
-import traceback
 
 from colony.observer import Observer, Observable
 from colony.persistent_variable import PersistentVariable
@@ -11,7 +11,6 @@ from colony.utils.logging import get_logger
 
 
 class Graph(object):
-
     def __init__(self, name=None, logger=None):
         self.logger = logger or get_logger()
         self.nodes = []
@@ -51,9 +50,12 @@ class Graph(object):
         self.logger.info('Graph "%s" received stop signal', self.name)
         self.is_alive = False
         for node in self.nodes:
-            if hasattr(node, 'stop'):
+            if isinstance(node.worker, AsyncWorker):
                 node.stop()
-            node.worker.stop()
+
+        for node in self.nodes:
+            if isinstance(node.worker, SyncWorker):
+                node.stop()
 
 
 class OutputPort(Observable):
@@ -157,16 +159,28 @@ class SyncWorker(Worker):
     def __init__(self, *args, **kwargs):
         super(SyncWorker, self).__init__(*args, **kwargs)
         self.target = None
+        self.isStarted = False
 
     def execute(self, *args, **kwargs):
-        result = self.target(*args, **kwargs)
-        self._handle_result(result)
+        try:
+            if self.isStarted:
+                result = self.target(*args, **kwargs)
+                self._handle_result(result)
+            else:
+                raise Exception('SyncWorker.execute called, even though it is not started.')
+        except Exception as e:
+            msg = 'SyncWorker failed to execute: %s' % str(e)
+            exc = traceback.format_exc()
+            self.node.logger.error(msg)
+            self.node.logger.error(exc)
 
     def start(self):
         self.target = self._get_target_func()
+        self.isStarted = True
 
     def stop(self):
         self.target = None
+        self.isStarted = False
 
 
 class AsyncWorker(Worker):
@@ -382,11 +396,9 @@ class Node(object):
 
     def start(self):
         self.worker.start()
-    #
-    # def initialise_target_instance(self):
-    #     self.target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
-    #     self.target_instance.logger = self.logger
-    #     self.target_func = self.target_instance.execute
+
+    def stop(self):
+        self.worker.stop()
 
 
 class PersistentNode(Node):
