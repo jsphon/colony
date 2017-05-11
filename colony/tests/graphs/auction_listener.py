@@ -18,15 +18,15 @@ def get_auctions(category):
         return {'round': {'status': 'OPEN'}}
 
 
-def get_prices(auction_catalogue):
+def get_prices(auction_ids):
     results = {}
     print('Getting prices')
-    for auction_id in auction_catalogue:
+    for auction_id in auction_ids:
         results[auction_id] = AUCTION_PRICES[auction_id]
     return results
 
 
-def save_prices(prices):#, auction_catalogue=None):
+def save_prices(prices):
     for k, v in prices.items():
         print('Saving prices for %s: %s' % (str(k), str(v)))
 
@@ -35,7 +35,6 @@ def save_prices(prices):#, auction_catalogue=None):
 
 
 def on_close(prices, auction_catalogue=None):
-
     for k, v in prices.items():
         print('Archiving prices for %s: %s' % (str(k), str(v)))
 
@@ -58,15 +57,11 @@ class MyTestCase(unittest.TestCase):
         graph.start()
 
         graph.get_auctions_node.notify('widgets')
-        graph.get_prices_node.notify()
         graph.get_latest_prices()
 
         graph.stop()
 
         self.assertEqual(AUCTION_PRICES, graph.get_prices_node.get_value())
-
-        import time
-        time.sleep(1)
 
         expected = {'red': {'status': 'OPEN'},
                     'green': {'status': 'OPEN'}}
