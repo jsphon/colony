@@ -209,8 +209,6 @@ class AsyncWorker(Worker):
         self.result_thread.start()
 
     def stop(self):
-        # Code smell, as this assumes each worker thread only picks up one
-
         # It's important to let the worker threads stop first,
         # so that they have put their results onto result_queue
         # before this method adds the poison pill to it
@@ -239,9 +237,14 @@ class AsyncWorker(Worker):
                 return
             else:
                 args, kwargs = payload
-                result = target(*args, **kwargs)
-                self.result_queue.put(result)
-                self.worker_queue.task_done()
+                try:
+                    result = target(*args, **kwargs)
+                except Exception as e:
+                    self.node.logger.error('AsyncWorker failed to execute target %s:'%str(target), str(e))
+                    self.node.logger.error(traceback.format_exc())
+                else:
+                    self.result_queue.put(result)
+                    self.worker_queue.task_done()
 
     def _result_handler(self):
         while True:
