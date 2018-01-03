@@ -7,8 +7,11 @@ import pygraphviz as pgv
 from colony.node import AsyncWorker
 
 
-def display_colony_graph(g, layout='dot'):
-    A = pgv.AGraph(directed=True)
+def display_colony_graph(g, layout='dot', rankdir='LR'):
+    # Example layouts:
+    # https: // en.wikipedia.org / wiki / Graphviz
+
+    A = pgv.AGraph(directed=True, rankdir=rankdir)
 
     for n in g.nodes:
         src = n.target_func.__name__
@@ -62,7 +65,7 @@ if __name__ == '__main__':
     A.add_edge(1, 3)
     display_graph(A)
 
-    A = pgv.AGraph()
+    A = pgv.AGraph(rankdir='LR')
 
     A.add_edge('one', 'two', color='red', label='1-2', style='dashed')
     A.add_edge('two', 'three')

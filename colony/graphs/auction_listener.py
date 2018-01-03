@@ -1,6 +1,3 @@
-import os
-import tempfile
-
 from colony.node import Graph, DictionaryNode, BatchArgInputPort
 
 
@@ -9,15 +6,19 @@ class AuctionListener(Graph):
     def __init__(self, get_auctions_args=None,
                  get_prices_args=None,
                  save_prices_args=None,
+                 on_close_args=None,
                  save_prices_kwargs=None,
                  get_auctions_kwargs=None,
                  get_prices_kwargs=None,
                  close_filter=None,
+                 on_close_kwargs=None,
                  batch_size=5,
                  filename=None,
-                 folder=None
+                 folder=None,
+                 name=None,
+                 logger=None
                  ):
-        super(AuctionListener, self).__init__()
+        super(AuctionListener, self).__init__(name=name, logger=logger)
 
         if not isinstance(get_auctions_args, (list, tuple)):
             get_auctions_args = (get_auctions_args, ) if get_auctions_args else tuple()
@@ -27,6 +28,9 @@ class AuctionListener(Graph):
 
         if not isinstance(save_prices_args, (list, tuple)):
             save_prices_args = (save_prices_args, ) if save_prices_args else tuple()
+
+        if not isinstance(on_close_args, (list, tuple)):
+            on_close_args = (on_close_args, ) if on_close_args else tuple()
 
         get_auctions_kwargs = get_auctions_kwargs or {}
         self.get_auctions_node = self.add_node(*get_auctions_args, **get_auctions_kwargs)
@@ -47,15 +51,17 @@ class AuctionListener(Graph):
 
         save_prices_kwargs = save_prices_kwargs or {}
         save_prices_kwargs['node_args'] = (self.get_prices_node,)
-        save_prices_kwargs['node_kwargs'] = {'auction_catalogue': self.active_auctions_node}
 
         self.save_prices_node = self.add_thread_node(*save_prices_args, **save_prices_kwargs)
         close_filter = close_filter or default_close_filter
-        self.close_filter_node = self.add_node(close_filter,
-                                               node_args=(self.save_prices_node,))
+        self.close_filter_node = self.add_node(close_filter, node_args=(self.save_prices_node,))
 
-        self.delete_node = self.add_node(delete,
-                                         node_args=(self.close_filter_node,))
+        on_close_kwargs = on_close_kwargs or {}
+        on_close_kwargs['node_args'] = (self.close_filter_node, )
+        on_close_kwargs['node_kwargs'] = {'auction_catalogue':self.active_auctions_node}
+        self.on_close_node = self.add_node(*on_close_args, **on_close_kwargs)
+
+        self.delete_node = self.add_node(delete, node_args=(self.on_close_node,))
 
         self.delete_node.output_port.register_observer(self.active_auctions_node.reactive_input_ports[0])
 
@@ -87,15 +93,10 @@ def delete(data):
 
 def default_close_filter(prices):
     result = {}
-    print('close filter received %s prices'%len(prices))
     if prices:
-        if isinstance(prices, dict):
-            for k, v in prices.items():
-                if v['status'] == 'CLOSED':
-                    result[k] = v
-        elif isinstance(prices, (list, tuple)):
-            for v in prices:
-                if v['status'] == 'CLOSED':
-                    k = v['marketId']
-                    result[k] = v
+        print('close filter received %s prices' % len(prices))
+        for k, v in prices.items():
+            if v['status'] == 'CLOSED':
+                result[k] = v
+
     return result

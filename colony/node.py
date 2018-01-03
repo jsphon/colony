@@ -1,4 +1,5 @@
 import multiprocessing
+import traceback
 from multiprocessing import Process
 from queue import Queue
 from threading import Thread
@@ -6,40 +7,55 @@ from threading import Thread
 from colony.observer import Observer, Observable
 from colony.persistent_variable import PersistentVariable
 from colony.utils.function_info import FunctionInfo
+from colony.utils.logging import get_logger
 
 
 class Graph(object):
-    def __init__(self):
+    def __init__(self, name=None, logger=None):
+        self.logger = logger or get_logger()
         self.nodes = []
         self.process = multiprocessing.current_process()
         self.is_alive = False
+        self.name = name or ''
 
     def add(self, node_class, *args, **kwargs):
         new_node = node_class(*args, **kwargs)
+        new_node.logger = self.logger
         self.nodes.append(new_node)
         return new_node
 
     def add_node(self, *args, **kwargs):
-        return self.add(Node, *args, **kwargs)
+        result = self.add(Node, *args, **kwargs)
+        result.logger = self.logger
+        return result
 
     def add_thread_node(self, *args, **kwargs):
-        return self.add(ThreadNode, *args, **kwargs)
+        result = self.add(ThreadNode, *args, **kwargs)
+        result.logger = self.logger
+        return result
 
     def add_process_node(self, *args, **kwargs):
-        return self.add(ProcessNode, *args, **kwargs)
+        result = self.add(ProcessNode, *args, **kwargs)
+        result.logger = self.logger
+        return result
 
     def start(self):
+        self.logger.info('Graph "%s" starting', self.name)
         for node in self.nodes:
             if hasattr(node, 'start'):
                 node.start()
         self.is_alive = True
 
     def stop(self):
+        self.logger.info('Graph "%s" received stop signal', self.name)
         self.is_alive = False
         for node in self.nodes:
-            if hasattr(node, 'stop'):
+            if isinstance(node.worker, AsyncWorker):
                 node.stop()
-            node.worker.stop()
+
+        for node in self.nodes:
+            if isinstance(node.worker, SyncWorker):
+                node.stop()
 
 
 class OutputPort(Observable):
@@ -134,7 +150,8 @@ class Worker(object):
         if self.node.target_func:
             return self.node.target_func
         else:
-            target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
+            target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs.copy())
+            target_instance.logger = self.node.logger
             return target_instance.execute
 
 
@@ -142,16 +159,28 @@ class SyncWorker(Worker):
     def __init__(self, *args, **kwargs):
         super(SyncWorker, self).__init__(*args, **kwargs)
         self.target = None
+        self.isStarted = False
 
     def execute(self, *args, **kwargs):
-        result = self.target(*args, **kwargs)
-        self._handle_result(result)
+        try:
+            if self.isStarted:
+                result = self.target(*args, **kwargs)
+                self._handle_result(result)
+            else:
+                raise Exception('SyncWorker.execute called, even though it is not started.')
+        except Exception as e:
+            msg = 'SyncWorker failed to execute: %s' % str(e)
+            exc = traceback.format_exc()
+            self.node.logger.error(msg)
+            self.node.logger.error(exc)
 
     def start(self):
         self.target = self._get_target_func()
+        self.isStarted = True
 
     def stop(self):
         self.target = None
+        self.isStarted = False
 
 
 class AsyncWorker(Worker):
@@ -180,8 +209,6 @@ class AsyncWorker(Worker):
         self.result_thread.start()
 
     def stop(self):
-        # Code smell, as this assumes each worker thread only picks up one
-
         # It's important to let the worker threads stop first,
         # so that they have put their results onto result_queue
         # before this method adds the poison pill to it
@@ -203,23 +230,21 @@ class AsyncWorker(Worker):
 
     def _worker(self):
         target = self._get_target_func()
-        keep_running = True
-        while keep_running:
-            try:
-                payload = self.worker_queue.get()
-                keep_running = self._do_work(target, payload)
+        while True:
+            payload = self.worker_queue.get()
+            if isinstance(payload, PoisonPill):
                 self.worker_queue.task_done()
-            except Exception as e:
-                print('AsyncWorker failed to do work: %s' % str(e))
-
-    def _do_work(self, target, payload):
-        if isinstance(payload, PoisonPill):
-            return False
-        else:
-            args, kwargs = payload
-            result = target(*args, **kwargs)
-            self.result_queue.put(result)
-            return True
+                return
+            else:
+                args, kwargs = payload
+                try:
+                    result = target(*args, **kwargs)
+                except Exception as e:
+                    self.node.logger.error('AsyncWorker failed to execute target %s:'%str(target), str(e))
+                    self.node.logger.error(traceback.format_exc())
+                else:
+                    self.result_queue.put(result)
+                    self.worker_queue.task_done()
 
     def _result_handler(self):
         while True:
@@ -246,13 +271,15 @@ class Node(object):
                  name=None,
                  node_worker_class=None,
                  node_worker_class_args=None,
-                 node_worker_class_kwargs=None):
+                 node_worker_class_kwargs=None,
+                 logger=None):
 
         self.target_func = target_func
         self.target_class = target_class
         self.target_class_args = target_class_args or []
         self.target_class_kwargs = target_class_kwargs or {}
         self.target_instance = None
+        self.logger = logger or get_logger()
 
         if target_func and target_class is None:
             target_info = FunctionInfo(target_func)
@@ -292,9 +319,9 @@ class Node(object):
                 try:
                     node_arg.output_port.register_observer(self.reactive_input_ports[i])
                 except Exception:
-                    print('Failed to register on reactive input port %i' % i)
-                    print('target_func: %s' % str(target_func))
-                    print('target_class: %s' % str(target_class))
+                    self.logger.error('Failed to register on reactive input port %i', i)
+                    self.logger.error('target_func: %s', str(target_func))
+                    self.logger.error('target_class: %s', str(target_class))
                     raise
 
         self.output_port = OutputPort()
@@ -314,8 +341,8 @@ class Node(object):
                 try:
                     node_kwarg.output_port.register_observer(self.passive_input_ports[kwarg])
                 except KeyError:
-                    print('Is %s in %s' % (kwarg, self.passive_input_ports.keys()))
-                    print('Is it really a arg?')
+                    self.logger.error('Is %s in %s' % (kwarg, self.passive_input_ports.keys()))
+                    self.logger.error('Is it really a arg?')
                     raise
 
         self._value = None
@@ -326,9 +353,6 @@ class Node(object):
         args = node_worker_class_args or []
         kwargs = node_worker_class_kwargs or {}
         return node_worker_class(self, *args, **kwargs)
-
-    def new_target_class_instance(self):
-        return self.target_class(*self.target_class_args, **self.target_class_kwargs)
 
     def __repr__(self):
         class_name = self.__class__.__name__
@@ -366,7 +390,8 @@ class Node(object):
         try:
             self.worker.execute(*self.reactive_input_values, **self.passive_input_values)
         except Exception as e:
-            print('Failed to execute worker: %s' % str(e))
+            self.logger.error('Failed to execute worker: %s', str(e))
+            self.logger.error(traceback.format_exc())
 
     def handle_result(self, result):
         self.set_value(result)
@@ -375,9 +400,8 @@ class Node(object):
     def start(self):
         self.worker.start()
 
-    def initialise_target_instance(self):
-        self.target_instance = self.target_class(*self.target_class_args, **self.target_class_kwargs)
-        self.target_func = self.target_instance.execute
+    def stop(self):
+        self.worker.stop()
 
 
 class PersistentNode(Node):

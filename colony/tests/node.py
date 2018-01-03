@@ -5,7 +5,7 @@ from multiprocessing import Process
 from threading import Thread
 
 from colony.node import DictionaryNode
-from colony.node import Graph, Node, MappingArgInputPort, BatchArgInputPort, AsyncNode
+from colony.node import Graph, Node, MappingArgInputPort, BatchArgInputPort, AsyncNode, AsyncWorker
 from colony.observer import RememberingObserver, ProcessSafeRememberingObserver
 
 
@@ -104,6 +104,32 @@ class DictionaryNodeTests(unittest.TestCase):
 
 
 class AsyncNodeTests(unittest.TestCase):
+
+    def test_recoversFromWorkerException(self):
+        global c
+        c=0
+        def raise_exception_first_time():
+            global c
+            if c==0:
+                c += 1
+                raise Exception('Intentional')
+
+            else:
+                return 'Called Second Time'
+
+        node = AsyncNode(target_func=raise_exception_first_time,
+                         async_class=Thread)
+
+        node.start()
+
+        node.notify()
+        node.notify()
+        node.stop()
+
+        print(node.get_value())
+        self.assertEqual('Called Second Time', node.get_value())
+
+
     def test_calls_observer_process(self):
         for async_class in (Thread,):  # , Process):
             self.do_test_calls_observer_process(async_class)
