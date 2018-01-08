@@ -19,24 +19,22 @@ class Graph(object):
         self.name = name or ''
 
     def add(self, node_class, *args, **kwargs):
+        if 'logger' not in kwargs:
+            kwargs['logger'] = self.logger
         new_node = node_class(*args, **kwargs)
-        new_node.logger = self.logger
         self.nodes.append(new_node)
         return new_node
 
     def add_node(self, *args, **kwargs):
         result = self.add(Node, *args, **kwargs)
-        result.logger = self.logger
         return result
 
     def add_thread_node(self, *args, **kwargs):
         result = self.add(ThreadNode, *args, **kwargs)
-        result.logger = self.logger
         return result
 
     def add_process_node(self, *args, **kwargs):
         result = self.add(ProcessNode, *args, **kwargs)
-        result.logger = self.logger
         return result
 
     def start(self):
