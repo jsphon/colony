@@ -94,7 +94,6 @@ def delete(data):
 def default_close_filter(prices):
     result = {}
     if prices:
-        print('close filter received %s prices' % len(prices))
         for k, v in prices.items():
             if v['status'] == 'CLOSED':
                 result[k] = v
