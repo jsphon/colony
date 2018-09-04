@@ -20,6 +20,7 @@ class AuctionListener(Graph):
                  ):
         super(AuctionListener, self).__init__(name=name, logger=logger)
 
+        self.logger.info('Getting args')
         if not isinstance(get_auctions_args, (list, tuple)):
             get_auctions_args = (get_auctions_args, ) if get_auctions_args else tuple()
 
@@ -33,6 +34,7 @@ class AuctionListener(Graph):
             on_close_args = (on_close_args, ) if on_close_args else tuple()
 
         get_auctions_kwargs = get_auctions_kwargs or {}
+        self.logger.info('getting nodes')
         self.get_auctions_node = self.add_node(*get_auctions_args, **get_auctions_kwargs)
         self.update_node = self.add_node(update,
                                          node_args=(self.get_auctions_node,))
