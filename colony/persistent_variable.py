@@ -16,7 +16,10 @@ class PersistentVariable(object):
     def refresh(self):
         if os.path.isfile(self.path):
             with open(self.path) as f:
-                self.value = json.load(f)
+                try:
+                    self.value = json.load(f)
+                except json.decoder.JSONDecodeError as e:
+                    print('Could not decode %s' % self.path)
 
     def set_value(self, value):
         self.value = value
